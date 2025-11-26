@@ -5,12 +5,11 @@ use std::{
 };
 
 use zip::{
-    ZipWriter,
     result::ZipResult,
     write::{FileOptionExtension, FileOptions},
+    ZipWriter,
 };
 
-/// Creates a zip archive that contains the files and directories from the specified directory, uses the specified compression level.
 pub fn zip_create_from_directory_with_options<F, T>(
     archive_file: &PathBuf,
     directory: &Path,

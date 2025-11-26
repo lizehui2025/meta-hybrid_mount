@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -29,6 +31,11 @@ jobs:
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r26b
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang cmake
 
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -56,7 +63,8 @@ jobs:
 
       - name: Build Project
         run: |
-          cargo run -p xbuild --release
+          # 修改为使用 xtask
+          cargo xtask build --release
           
           if [ -f "output/version" ]; then
             echo "MODULE_VERSION=$(cat output/version)" >> $GITHUB_ENV

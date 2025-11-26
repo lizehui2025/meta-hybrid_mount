@@ -1,3 +1,7 @@
+[workspace]
+members = ["meta-hybrid", "xtask"]
+resolver = "2"
+
 [package]
 name = "meta-hybrid"
 version = "0.3.0"
