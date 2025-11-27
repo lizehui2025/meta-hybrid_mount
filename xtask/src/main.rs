@@ -4,10 +4,10 @@ use std::{
     env,
     fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command, // Removed Stdio
 };
 
-use anyhow::{Context, Result};
+use anyhow::Result; // Removed Context
 use clap::{Parser, Subcommand};
 use fs_extra::dir;
 use zip::{write::FileOptions, CompressionMethod};
@@ -39,6 +39,7 @@ fn main() -> Result<()> {
     let root = project_root();
 
     match cli.command {
+        // We ignore sign_key with `_` since zakosign is disabled
         Commands::Build { release, sign_key: _ } => {
             let output_dir = root.join("output");
             let module_build_dir = output_dir.join("module_files");
@@ -95,7 +96,7 @@ fn main() -> Result<()> {
             let zip_name = format!("meta-hybrid-{}.zip", version);
             let zip_path = output_dir.join(zip_name);
             
-            // Zip creates from module_build_dir, so files MUST be there
+            // Zip creates from module_build_dir
             zip_create_from_directory_with_options(
                 &zip_path,
                 &module_build_dir,
@@ -198,4 +199,3 @@ fn inject_version(target_dir: &Path) -> Result<String> {
     
     Ok(full_version)
 }
-
