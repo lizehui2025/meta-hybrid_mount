@@ -62,7 +62,7 @@ jobs:
       - name: Generate Change log
         run: |
           PROP_FILE="module/module.prop"
-          VERSION=$(grep "^version=" "$PROP_FILE" | cut -d= -f2)
+          VERSION=$(grep "^version=" "$PROP_FILE" | cut -d= -f2 | sed 's/-.*//')
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           
           echo "## $VERSION" > /tmp/changelog.md
