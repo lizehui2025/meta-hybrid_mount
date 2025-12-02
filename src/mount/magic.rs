@@ -64,8 +64,11 @@ fn collect_module_files(module_paths: &[PathBuf], extra_partitions: &[String]) -
         for (partition, require_symlink) in ROOT_PARTITIONS {
             let path_of_root = Path::new("/").join(partition);
             let path_of_system = Path::new("/system").join(partition);
-            
-            if path_of_root.is_dir() {
+            let is_root_symlink = fs::symlink_metadata(&path_of_root)
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false);
+
+            if path_of_root.exists() && !is_root_symlink {
                 if !require_symlink || path_of_system.is_symlink() {
                     let name = partition.to_string();
                     if let Some(node) = system.children.remove(&name) {
@@ -88,7 +91,11 @@ fn collect_module_files(module_paths: &[PathBuf], extra_partitions: &[String]) -
             let path_of_system = Path::new("/system").join(partition);
             let require_symlink = false; 
 
-            if path_of_root.is_dir() && (!require_symlink || path_of_system.is_symlink()) {
+            let is_root_symlink = fs::symlink_metadata(&path_of_root)
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false);
+
+            if path_of_root.exists() && !is_root_symlink && (!require_symlink || path_of_system.is_symlink()) {
                 let name = partition.clone();
                 if let Some(node) = system.children.remove(&name) {
                     log::debug!("promoting extra partition '{}' to root", name);
