@@ -38,7 +38,7 @@ jobs:
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          targets: aarch64-linux-android,x86_64-linux-android,riscv64-linux-android
+          targets: aarch64-linux-android,x86_64-linux-android
           components: rust-src
 
       - name: Cache Rust dependencies
@@ -79,7 +79,6 @@ jobs:
         run: |
           cd webui
           npm install
-          # 修改点：强制指定输出目录为 dist，覆盖项目本身的配置
           npm run build -- --outDir dist
           
           if [ ! -d "dist" ]; then echo "Error: WebUI dist not found!"; exit 1; fi
@@ -95,18 +94,14 @@ jobs:
           WORKDIR="output/module_files"
           mkdir -p "$WORKDIR"
 
-          # 1. 复制基础脚本
           cp -r module/* "$WORKDIR/"
           
-          # 2. 复制 WebUI (现在 dist 肯定存在了)
           mkdir -p "$WORKDIR/webui"
           cp -r webui/dist/* "$WORKDIR/webui/"
 
-          # 3. 更新版本信息
           sed -i "s/^version=.*/version=${{ env.MODULE_VERSION }}/" "$WORKDIR/module.prop"
           sed -i "s/^versionCode=.*/versionCode=${{ github.run_number }}/" "$WORKDIR/module.prop"
 
-          # 4. 打包 Zip
           ZIP_NAME="Meta-Hybrid-${{ env.MODULE_VERSION }}.zip"
           cd "$WORKDIR"
           zip -r "../../output/$ZIP_NAME" .

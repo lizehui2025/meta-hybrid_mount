@@ -39,7 +39,7 @@ jobs:
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          targets: aarch64-linux-android,x86_64-linux-android,riscv64-linux-android
+          targets: aarch64-linux-android,x86_64-linux-android
           components: rust-src
 
       - name: Cache Rust dependencies
@@ -81,7 +81,6 @@ jobs:
         run: |
           cd webui
           npm install
-          # 修改点：强制指定输出目录为 dist
           npm run build -- --outDir dist
 
       - name: Build Universal Binaries
@@ -95,16 +94,13 @@ jobs:
           WORKDIR="output/module_files"
           mkdir -p "$WORKDIR"
 
-          # 复制文件
           cp -r module/* "$WORKDIR/"
           mkdir -p "$WORKDIR/webui"
           cp -r webui/dist/* "$WORKDIR/webui/"
 
-          # 更新版本
           sed -i "s/^version=.*/version=${{ env.MODULE_VERSION }}/" "$WORKDIR/module.prop"
           sed -i "s/^versionCode=.*/versionCode=${{ github.run_number }}/" "$WORKDIR/module.prop"
 
-          # 打包
           ZIP_NAME="Meta-Hybrid-${{ env.MODULE_VERSION }}.zip"
           cd "$WORKDIR"
           zip -r "../../output/$ZIP_NAME" .
