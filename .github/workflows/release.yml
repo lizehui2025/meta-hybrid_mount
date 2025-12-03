@@ -37,7 +37,7 @@ jobs:
           sudo apt-get update
 
       - name: Setup Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,x86_64-linux-android,riscv64-linux-android
           components: rust-src
