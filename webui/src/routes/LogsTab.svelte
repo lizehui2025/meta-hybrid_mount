@@ -4,11 +4,14 @@
   import { onMount, tick, onDestroy } from 'svelte';
   import Skeleton from '../components/Skeleton.svelte';
   import './LogsTab.css';
+
   let searchLogQuery = $state('');
   let filterLevel = $state('all'); 
   let logContainer;
   let autoRefresh = $state(false);
   let refreshInterval;
+  let userHasScrolledUp = $state(false);
+
   let filteredLogs = $derived(store.logs.filter(line => {
     const text = line.text.toLowerCase();
     const matchesSearch = text.includes(searchLogQuery.toLowerCase());
@@ -18,16 +21,30 @@
     }
     return matchesSearch && matchesLevel;
   }));
+
   async function scrollToBottom() {
-    if (logContainer && autoRefresh) { 
+    if (logContainer) { 
       await tick();
-      logContainer.scrollTop = logContainer.scrollHeight;
+      logContainer.scrollTo({ top: logContainer.scrollHeight, behavior: 'smooth' });
+      userHasScrolledUp = false;
     }
   }
+
+  function handleScroll(e) {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+    userHasScrolledUp = distanceToBottom > 50;
+  }
+
   async function refreshLogs(silent = false) {
     await store.loadLogs(silent);
-    if (!silent) scrollToBottom(); 
+    if (!silent && !userHasScrolledUp) {
+      if (logContainer) {
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+    }
   }
+
   async function copyLogs() {
     if (filteredLogs.length === 0) return;
     const text = filteredLogs.map(l => l.text).join('\n');
@@ -38,6 +55,7 @@
       store.showToast(store.L.logs.copyFail, 'error');
     }
   }
+
   $effect(() => {
     if (autoRefresh) {
       refreshLogs(true); 
@@ -49,13 +67,16 @@
     }
     return () => { if (refreshInterval) clearInterval(refreshInterval); };
   });
+
   onMount(() => {
     refreshLogs(); 
   });
+
   onDestroy(() => {
     if (refreshInterval) clearInterval(refreshInterval);
   });
 </script>
+
 <div class="logs-controls">
   <svg viewBox="0 0 24 24" width="20" height="20" style="fill: var(--md-sys-color-on-surface-variant)">
     <path d={ICONS.search} />
@@ -81,7 +102,8 @@
     <option value="error">{store.L.logs.levels.error}</option>
   </select>
 </div>
-<div class="log-container" bind:this={logContainer}>
+
+<div class="log-container" bind:this={logContainer} onscroll={handleScroll}>
   {#if store.loading.logs}
     <div style="display:flex; flex-direction:column; gap:8px;">
       {#each Array(10) as _, i}
@@ -102,7 +124,20 @@
       — Showing last 1000 lines —
     </div>
   {/if}
+
+  {#if userHasScrolledUp}
+    <button 
+      class="scroll-fab" 
+      onclick={scrollToBottom}
+      title="Scroll to bottom"
+      style="position: sticky; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border: none; border-radius: 20px; padding: 8px 16px; box-shadow: var(--md-sys-elevation-2); display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; font-weight: 500; z-index: 10;"
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16"><path d="M11 4h2v12l5.5-5.5 1.42 1.42L12 19.84l-7.92-7.92L5.5 10.5 11 16V4z" fill="currentColor"/></svg>
+      Latest
+    </button>
+  {/if}
 </div>
+
 <div class="bottom-actions">
   <button class="btn-tonal" onclick={copyLogs} disabled={filteredLogs.length === 0} title={store.L.logs.copy}>
     <svg viewBox="0 0 24 24" width="20" height="20"><path d={ICONS.copy} fill="currentColor"/></svg>
