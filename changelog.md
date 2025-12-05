@@ -1,9 +1,10 @@
-## v1.0.0-r1
+## v1.0.0-r2
 
-Changes since v0.3.0-r1:
-* webui: update mock api
-* fix(webui): display actual mount point path when using tmpfs storage
-* ci: standardize version code generation across workflows
-* refactor(core): add partition name to OverlayOperation src/core/planner.rs
-* feat(core): implement active overlay mount detection in RuntimeState src/core/state.rs
-* [skip ci] Update metadata for v0.3.0-r1
+Changes since v1.0.0-r1:
+* refactor(ui): extract inline styles to CSS files and optimize layout
+* feat(webui): implement stacked toast notifications with animations
+* feat(webui): implement 1:1 follow-finger swipe navigation
+* feat(webui): optimize interactions for logs and navigation
+* fix(webui): prevent storage path text overflow in status card
+* [skip ci]readme: update readme.md
+* chore(release): bump version to v1.0.0-r1 [skip ci]
