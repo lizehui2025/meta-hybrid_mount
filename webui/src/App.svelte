@@ -10,12 +10,11 @@
   import InfoTab from './routes/InfoTab.svelte';
   import './app.css';
   import './layout.css';
-  
+
   let activeTab = $state('status');
   let dragOffset = $state(0);
   let isDragging = $state(false);
   let containerWidth = $state(0);
-
   let touchStartX = 0;
   let touchStartY = 0;
 
@@ -34,7 +33,6 @@
 
   function handleTouchMove(e) {
     if (!isDragging) return;
-
     const currentX = e.changedTouches[0].screenX;
     const currentY = e.changedTouches[0].screenY;
     let diffX = currentX - touchStartX;
@@ -79,6 +77,7 @@
   onMount(() => {
     store.init();
   });
+
   let baseTranslateX = $derived(TABS.indexOf(activeTab) * -20);
 </script>
 
@@ -117,42 +116,3 @@
 
   <Toast />
 </div>
-
-<style>
-  :global(.main-content) {
-    overflow-x: hidden;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .swipe-track {
-    display: flex;
-    width: 500%; 
-    height: 100%;
-    will-change: transform;
-  }
-
-  .swipe-page {
-    width: 20%;
-    height: 100%;
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .page-scroller {
-    height: 100%;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 88px;
-    box-sizing: border-box;
-  }
-  :global(.bottom-actions) {
-    position: absolute !important;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    z-index: 10;
-  }
-</style>
