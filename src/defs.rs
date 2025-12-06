@@ -22,5 +22,7 @@ pub const MODULE_PROP_FILE: &str = "/data/adb/modules/meta-hybrid/module.prop";
 
 pub const BUILTIN_PARTITIONS: &[&str] = &["system", "vendor", "product", "system_ext", "odm", "oem", "apex"];
 
+#[allow(dead_code)]
 pub const REPLACE_DIR_FILE_NAME: &str = ".replace";
+#[allow(dead_code)]
 pub const REPLACE_DIR_XATTR: &str = "trusted.overlay.opaque";

@@ -1,5 +1,5 @@
 #[cfg(any(target_os = "linux", target_os = "android"))]
-use std::{ffi::CString, io, os::fd::RawFd, path::Path, sync::OnceLock};
+use std::{os::fd::RawFd, path::Path, sync::OnceLock};
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use anyhow::Result;
