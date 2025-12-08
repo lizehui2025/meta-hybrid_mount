@@ -18,37 +18,52 @@
 <div class="dashboard-grid">
   <div class="storage-card">
     {#if store.loading.status}
-      <div class="storage-header">
-        <Skeleton width="100px" height="20px" />
-        <Skeleton width="60px" height="32px" />
+      <div class="storage-header-row">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <Skeleton width="100px" height="24px" />
+            <Skeleton width="60px" height="20px" borderRadius="12px" />
+        </div>
+        <Skeleton width="120px" height="64px" />
       </div>
-      <div class="progress-track progress-track-skeleton">
-        <Skeleton width="100%" height="8px" borderRadius="4px" />
+      <div class="progress-track progress-track-skeleton" style="margin-top: 24px;">
+        <Skeleton width="100%" height="12px" borderRadius="6px" />
       </div>
       <div class="storage-details">
         <Skeleton width="150px" height="12px" />
         <Skeleton width="80px" height="12px" />
       </div>
     {:else}
-      <div class="storage-header">
-        <div class="storage-title-group">
-          <span class="storage-title">{store.L.status.storageTitle}</span>
-          {#if store.storage.type && store.storage.type !== 'unknown'}
-            <span class="storage-type-badge {store.storage.type === 'tmpfs' ? 'type-tmpfs' : 'type-ext4'}">
-              {store.storage.type.toUpperCase()}
-            </span>
-          {/if}
+      <div class="storage-header-row">
+        <div class="storage-info-col">
+            <div class="storage-label-group">
+                <div class="storage-icon-circle">
+                    <svg viewBox="0 0 24 24"><path d={ICONS.storage} /></svg>
+                </div>
+                <span class="storage-title">{store.L.status.storageTitle}</span>
+            </div>
+            
+            {#if store.storage.type && store.storage.type !== 'unknown'}
+              <span class="storage-type-badge {store.storage.type === 'tmpfs' ? 'type-tmpfs' : 'type-ext4'}">
+                {store.storage.type.toUpperCase()}
+              </span>
+            {/if}
         </div>
-        <div class="storage-value">
-          {store.storage.percent}
+
+        <div class="storage-value-group">
+            <span class="storage-value">{store.storage.percent}</span>
+            <span class="storage-unit">Used</span>
         </div>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" style="width: {store.storage.percent}"></div>
+
+      <div class="progress-container">
+        <div class="progress-track">
+            <div class="progress-fill" style="width: {store.storage.percent}"></div>
+        </div>
       </div>
+      
       <div class="storage-details">
-        <span>{storageLabel}</span>
-        <span>{store.storage.used} / {store.storage.size}</span>
+        <span class="detail-path">{storageLabel}</span>
+        <span class="detail-nums">{store.storage.used} / {store.storage.size}</span>
       </div>
     {/if}
   </div>
@@ -137,7 +152,7 @@
     {:else}
       <div class="mode-row">
         <div class="mode-name">
-          <div class="dot" style="background-color: var(--md-sys-color-primary)"></div>
+          <div class="dot" style="background-color: var(--md-sys-color-secondary)"></div>
           {store.L.status.modeAuto}
         </div>
         <span class="mode-count">{store.modeStats.auto}</span>

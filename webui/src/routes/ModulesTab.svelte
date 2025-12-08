@@ -9,7 +9,10 @@
 
   let searchQuery = $state('');
   let filterType = $state('all');
-  let expandedMap = $state<Record<string, boolean>>({});
+  
+  // Changed to single string ID for accordion behavior
+  let expandedId = $state<string | null>(null);
+  
   let initialModulesStr = $state('');
 
   onMount(() => {
@@ -41,13 +44,13 @@
     return matchSearch && matchFilter;
   }));
 
+  // Logic to toggle only one item at a time
   function toggleExpand(id: string) {
-    if (expandedMap[id]) {
-      delete expandedMap[id];
+    if (expandedId === id) {
+        expandedId = null; // Close if already open
     } else {
-      expandedMap[id] = true;
+        expandedId = id;   // Open new and auto-close others
     }
-    expandedMap = { ...expandedMap };
   }
 
   function handleKeydown(e: KeyboardEvent, id: string) {
@@ -105,7 +108,7 @@
     {#each filteredModules as mod (mod.id)}
       <div 
         class="rule-card" 
-        class:expanded={expandedMap[mod.id]} 
+        class:expanded={expandedId === mod.id} 
         onclick={() => toggleExpand(mod.id)}
         onkeydown={(e) => handleKeydown(e, mod.id)}
         role="button"
@@ -124,7 +127,7 @@
           </div>
         </div>
         
-        {#if expandedMap[mod.id]}
+        {#if expandedId === mod.id}
           <div class="rule-details" transition:slide={{ duration: 200 }}>
             <p class="module-desc">{mod.description || 'No description'}</p>
             <p class="module-meta">Author: {mod.author || 'Unknown'}</p>

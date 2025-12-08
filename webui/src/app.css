@@ -80,7 +80,7 @@ button:active {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: var(--md-sys-elevation-1);
+  box-shadow: none;
 }
 
 .btn-filled:disabled {
@@ -129,7 +129,7 @@ button:active {
   flex-direction: column;
   gap: 16px;
   margin-bottom: 16px;
-  box-shadow: var(--md-sys-elevation-1);
+  box-shadow: none;
 }
 
 .text-field {

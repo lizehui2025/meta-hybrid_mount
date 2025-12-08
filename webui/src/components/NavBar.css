@@ -1,23 +1,23 @@
 .bottom-nav {
   display: flex;
-  background-color: var(--md-sys-color-surface);
-  /* Border on top instead of bottom */
-  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface-container);
+  /* Remove border and shadow for a cleaner MD3 look */
+  border-top: none;
+  box-shadow: none; 
   
   /* Safe area handling for Android navigation bar */
   padding-bottom: max(16px, env(safe-area-inset-bottom));
-  padding-top: 12px;
-  padding-left: 16px;
-  padding-right: 16px;
+  padding-top: 16px;
+  padding-left: 24px;
+  padding-right: 24px;
   
   overflow-x: auto;
   flex-shrink: 0;
   -ms-overflow-style: none;
   gap: 8px;
   
-  /* Ensure it sits above content if needed, though flex layout handles it */
-  z-index: 20;
-  box-shadow: var(--md-sys-elevation-2);
+  /* Ensure it sits above content (BottomActions has z-index 90) */
+  z-index: 100;
 }
 
 .bottom-nav::-webkit-scrollbar {
@@ -41,18 +41,16 @@
   cursor: pointer;
   border: none;
   padding: 0;
-  /* Remove border-radius to feel more like a bottom bar item, 
-     but keeping pill shape for active state is nice */
 }
 
 .icon-container {
   width: 64px;
   height: 32px;
-  border-radius: 16px;
+  border-radius: 20px; /* MD3 uses fuller pills usually, or 16px is fine */
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
 .nav-tab svg {
@@ -65,10 +63,11 @@
 /* Active State */
 .nav-tab.active .icon-container {
   background-color: var(--md-sys-color-secondary-container);
+  width: 64px; /* Ensure width stays stable */
 }
 
 .nav-tab.active {
-  color: var(--md-sys-color-on-surface); /* Usually distinct from container text */
+  color: var(--md-sys-color-on-surface);
 }
 
 .nav-tab.active svg {
@@ -79,8 +78,6 @@
   font-weight: 700;
 }
 
-/* Ripple effect handled by framework or browser default usually, 
-   but we can add a simple active press state */
 .nav-tab:active .icon-container {
   opacity: 0.8;
 }

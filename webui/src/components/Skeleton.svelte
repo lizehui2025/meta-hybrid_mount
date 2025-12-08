@@ -1,14 +1,12 @@
 <script lang="ts">
   import './Skeleton.css';
-
-  interface Props {
-    width?: string;
-    height?: string;
-    style?: string;
-    borderRadius?: string;
-  }
-
-  let { width = '100%', height = '20px', style = '', borderRadius = '4px' }: Props = $props();
+  let { width = '100%', height = '20px', borderRadius = '12px', style = '' } = $props();
 </script>
 
-<div class="skeleton" style="width: {width}; height: {height}; border-radius: {borderRadius}; {style}"></div>
+<div 
+  class="skeleton" 
+  style:width={width} 
+  style:height={height} 
+  style:border-radius={borderRadius}
+  style="{style}"
+></div>

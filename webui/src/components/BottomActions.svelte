@@ -19,7 +19,6 @@
     z-index: 90;
     pointer-events: none;
     margin-top: auto;
-    background: linear-gradient(to top, var(--md-sys-color-background) 0%, transparent 100%);
   }
 
   :global(.bottom-actions-root > *) {

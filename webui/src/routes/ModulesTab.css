@@ -2,15 +2,18 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-bottom: 24px;
 }
 
+/* Expressive List Item / Card */
 .rule-card {
   background: var(--md-sys-color-surface-container-low);
-  border-radius: 16px;
+  border-radius: 24px; /* Larger corners */
   overflow: hidden;
-  transition: background-color 0.2s;
-  border: 1px solid transparent;
+  transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+  border: none;
   cursor: pointer;
+  position: relative;
 }
 
 .rule-card:hover {
@@ -19,15 +22,15 @@
 
 .rule-card.expanded {
   background: var(--md-sys-color-surface-container);
-  border-color: var(--md-sys-color-outline-variant);
+  /* Optional: slightly distinct color for expanded state */
 }
 
 .rule-main {
-  padding: 16px;
+  padding: 20px; /* More breathing room */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
 }
 
 .rule-info {
@@ -35,13 +38,14 @@
   align-items: center;
   gap: 16px;
   flex: 1;
-  min-width: 0; /* 允许 flex item 收缩 */
+  min-width: 0;
 }
 
 .info-col {
   display: flex;
   flex-direction: column;
-  min-width: 0; /* 关键修复：允许嵌套的 flex 容器收缩，触发内部文本截断 */
+  gap: 2px;
+  min-width: 0;
 }
 
 .module-name {
@@ -55,28 +59,33 @@
 }
 
 .module-id {
-  font-size: 12px;
-  color: var(--md-sys-color-outline);
+  font-size: 13px;
+  color: var(--md-sys-color-on-surface-variant);
   font-family: var(--md-ref-typeface-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.8;
 }
 
 .version-tag {
   opacity: 0.6;
   margin-left: 8px;
+  font-size: 12px;
 }
 
-/* Badge Styles for Header */
+/* Modern Chip-like Badges */
 .mode-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex-shrink: 0; /* 防止徽章被压缩 */
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px; /* Standard MD3 chip radius */
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .badge-auto {
@@ -90,29 +99,27 @@
 }
 
 .rule-details {
-  padding: 0 16px 16px 16px;
-  border-top: 1px solid var(--md-sys-color-surface-variant);
-  background-color: rgba(0,0,0,0.02);
+  padding: 0 20px 20px 20px;
+  border-top: 1px solid rgba(0,0,0,0.05); /* Very subtle divider */
 }
 
 .module-desc {
-  margin: 12px 0 8px 0;
-  font-size: 14px;
+  margin: 16px 0 12px 0;
+  font-size: 15px;
   color: var(--md-sys-color-on-surface-variant);
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .module-meta {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--md-sys-color-outline);
   font-family: var(--md-ref-typeface-mono);
 }
 
-/* Configuration Section in Details */
 .config-section {
-  margin-top: 16px;
-  padding-top: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
   border-top: 1px dashed var(--md-sys-color-outline-variant);
 }
 
@@ -124,38 +131,46 @@
 }
 
 .config-label {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--md-sys-color-on-surface);
 }
 
 .compact-select {
-  width: 150px;
+  width: 160px;
   margin-bottom: 0;
 }
 
 .compact-select input, 
 .compact-select select {
-  height: 42px; /* Smaller height for details view */
+  height: 48px;
+  border-radius: 12px;
 }
 
-/* Search Bar Styles */
+/* Expressive Search Bar */
 .search-container {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  background-color: var(--md-sys-color-surface-container);
-  border-radius: 28px;
-  padding: 0 16px;
-  height: 56px;
-  box-shadow: var(--md-sys-elevation-1);
+  gap: 16px;
+  margin-bottom: 20px;
+  background-color: var(--md-sys-color-surface-container-high);
+  /* Full Pill Shape */
+  border-radius: 9999px; 
+  padding: 0 24px;
+  /* Taller search bar */
+  height: 64px; 
+  box-shadow: none;
+  transition: background-color 0.2s;
+}
+
+.search-container:focus-within {
+  background-color: var(--md-sys-color-surface-container-highest);
 }
 
 .search-icon {
   width: 24px;
   height: 24px;
-  fill: var(--md-sys-color-on-surface-variant);
+  fill: var(--md-sys-color-on-surface);
   flex-shrink: 0;
 }
 
@@ -178,11 +193,11 @@
 .filter-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .filter-label-text {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--md-sys-color-on-surface-variant);
 }
 
@@ -191,13 +206,13 @@
   border: none;
   color: var(--md-sys-color-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   outline: none;
   padding-right: 4px;
   cursor: pointer;
+  height: 100%;
 }
 
-/* New extracted classes */
 .desc-card {
   padding: 16px;
 }
@@ -212,12 +227,12 @@
 .skeleton-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
 }
 
 .empty-state {
   text-align: center;
-  padding: 40px;
+  padding: 48px 24px;
   opacity: 0.6;
 }
