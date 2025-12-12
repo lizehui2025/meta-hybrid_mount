@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use std::fs::{File, OpenOptions};
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
@@ -58,12 +59,12 @@ struct HymoIoctlArg {
     r#type: libc::c_int,
 }
 
-fn ioc_add_rule() -> u64 { _IOW!(HYMO_IOC_MAGIC as u32, 1, HymoIoctlArg) as u64 }
-fn ioc_del_rule() -> u64 { _IOW!(HYMO_IOC_MAGIC as u32, 2, HymoIoctlArg) as u64 }
-fn ioc_hide_rule() -> u64 { _IOW!(HYMO_IOC_MAGIC as u32, 3, HymoIoctlArg) as u64 }
-fn ioc_inject_rule() -> u64 { _IOW!(HYMO_IOC_MAGIC as u32, 4, HymoIoctlArg) as u64 }
-fn ioc_clear_all() -> u64 { _IO!(HYMO_IOC_MAGIC as u32, 5) as u64 }
-fn ioc_get_version() -> u64 { _IOR!(HYMO_IOC_MAGIC as u32, 6, libc::c_int) as u64 }
+fn ioc_add_rule() -> libc::c_int { _IOW!(HYMO_IOC_MAGIC as u32, 1, HymoIoctlArg) as libc::c_int }
+fn ioc_del_rule() -> libc::c_int { _IOW!(HYMO_IOC_MAGIC as u32, 2, HymoIoctlArg) as libc::c_int }
+fn ioc_hide_rule() -> libc::c_int { _IOW!(HYMO_IOC_MAGIC as u32, 3, HymoIoctlArg) as libc::c_int }
+fn ioc_inject_rule() -> libc::c_int { _IOW!(HYMO_IOC_MAGIC as u32, 4, HymoIoctlArg) as libc::c_int }
+fn ioc_clear_all() -> libc::c_int { _IO!(HYMO_IOC_MAGIC as u32, 5) as libc::c_int }
+fn ioc_get_version() -> libc::c_int { _IOR!(HYMO_IOC_MAGIC as u32, 6, libc::c_int) as libc::c_int }
 
 #[derive(Debug)]
 pub enum HymoRule {
