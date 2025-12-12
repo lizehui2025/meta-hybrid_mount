@@ -1,7 +1,12 @@
-## v1.4.0
+## v1.5.0
 
-Changes since v1.3.2:
-* webui: edit screen-title font-weight
-* feat: add ZygiskSU denylist_enforce detection and umount coexistence option
-* refactor: move temp path
-* chore(release): bump version to v1.3.2 [skip ci]
+Changes since v1.4.0:
+* feat: Add automatic backup
+* workflow: sync release to repo
+* feat(core): implement dynamic system-based temp directory strategy
+* fix(hymofs): suppress unused code warnings
+* webui: add classic style navbar support
+* fix(hymofs): resolve compilation errors for ioctl and fs traits
+* refactor(hymofs): migrate to ioctl driver (protocol v4)
+* refactor(hymofs): implementation of Protocol v3 with buffered I/O
+* chore(release): bump version to v1.4.0 [skip ci]
