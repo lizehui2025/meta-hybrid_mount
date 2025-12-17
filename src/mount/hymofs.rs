@@ -31,6 +31,7 @@ ioctl_none!(ioc_clear_all, HYMO_IOC_MAGIC, 5);
 ioctl_read!(ioc_get_version, HYMO_IOC_MAGIC, 6, i32);
 ioctl_readwrite!(ioc_list_rules, HYMO_IOC_MAGIC, 7, HymoIoctlListArg);
 ioctl_write_ptr!(ioc_set_debug, HYMO_IOC_MAGIC, 8, i32);
+ioctl_none!(ioc_reorder_mnt_id, HYMO_IOC_MAGIC, 9);
 ioctl_write_ptr!(ioc_set_stealth, HYMO_IOC_MAGIC, 10, i32);
 ioctl_write_ptr!(ioc_hide_overlay_xattrs, HYMO_IOC_MAGIC, 11, HymoIoctlArg);
 
@@ -78,6 +79,8 @@ impl HymoFs {
         let file = Self::open_dev()?;
         unsafe { ioc_clear_all(file.as_raw_fd()) }
             .context("HymoFS clear failed")?;
+
+        // Enable debug mode by default (executor will override)
         let debug_val: i32 = 1;
         unsafe { ioc_set_debug(file.as_raw_fd(), &debug_val) }.ok();
         
@@ -261,6 +264,29 @@ impl HymoFs {
         let val: i32 = if enable { 1 } else { 0 };
         unsafe { ioc_set_stealth(file.as_raw_fd(), &val) }
             .context("HymoFS set_stealth failed")?;
+        Ok(())
+    }
+
+    pub fn hide_overlay_xattrs(path: &str) -> Result<()> {
+        debug!("HymoFS: HIDE_XATTRS path='{}'", path);
+        let file = Self::open_dev()?;
+        let c_path = CString::new(path)?;
+        
+        let arg = HymoIoctlArg {
+            src: c_path.as_ptr(),
+            target: std::ptr::null(),
+            type_: 0,
+        };
+
+        unsafe { ioc_hide_overlay_xattrs(file.as_raw_fd(), &arg) }
+            .context("HymoFS hide_overlay_xattrs failed")?;
+        Ok(())
+    }
+
+    pub fn reorder_mnt_id() -> Result<()> {
+        let file = Self::open_dev()?;
+        unsafe { ioc_reorder_mnt_id(file.as_raw_fd()) }
+             .context("HymoFS reorder_mnt_id failed")?;
         Ok(())
     }
 }

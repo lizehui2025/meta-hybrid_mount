@@ -255,6 +255,14 @@ fn run() -> Result<()> {
         .context("Storage backend setup failed")?;
     log::info!(">> Storage Backend: [{}]", storage_handle.mode.to_uppercase());
 
+    if config.hymofs_stealth && mount::hymofs::HymoFs::is_available() {
+        if let Err(e) = mount::hymofs::HymoFs::hide_overlay_xattrs(&storage_handle.mount_point.to_string_lossy()) {
+            log::warn!("Failed to hide overlay xattrs on storage: {}", e);
+        } else {
+            log::info!(">> HymoFS: Hidden overlay xattrs on {}", storage_handle.mount_point.display());
+        }
+    }
+
     let module_list = inventory::scan(&config.moduledir, &config)
         .context("Failed to scan module directory")?;
     log::info!(">> Inventory Scan: Found {} enabled modules.", module_list.len());
@@ -321,11 +329,4 @@ fn run() -> Result<()> {
 
     log::info!(">> System operational. Mount sequence complete.");
     Ok(())
-}
-
-fn main() {
-    if let Err(e) = run() {
-        eprintln!("Error: {:#}", e);
-        std::process::exit(1);
-    }
 }
