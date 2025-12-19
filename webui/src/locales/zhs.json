@@ -12,7 +12,10 @@
     "rebootTitle": "重启系统?",
     "rebootConfirm": "你确定你想重启系统吗？",
     "reboot": "重启",
-    "cancel": "取消"
+    "cancel": "取消",
+    "used": "已用",
+    "confirm": "确认",
+    "path": "路径"
   },
   "tabs": {
     "status": "状态",
@@ -35,7 +38,13 @@
     "mountBase": "挂载基点",
     "activePartitions": "活跃分区",
     "health": "文件冲突检测",
-    "healthy": "所有检查通过，文件没有冲突。"
+    "healthy": "所有检查通过，文件没有冲突。",
+    "hymofsActive": "已激活",
+    "hymofsNotDetected": "未检测到",
+    "hymofsAvailable": "可用 (未启用)",
+    "diagInfo": "信息",
+    "diagWarning": "警告",
+    "diagCritical": "严重错误"
   },
   "config": {
     "title": "配置",
@@ -51,10 +60,13 @@
     "hymoStealth": "HymoFS 隐身模式",
     "hymoDebug": "HymoFS 调试",
     "moduleDir": "模块路径",
+    "moduleDirDesc": "设置模块的存储位置",
     "tempDir": "临时路径",
+    "tempDirDesc": "Magic Mount 使用的临时目录",
     "mountSource": "挂载源名",
     "logFile": "日志文件",
     "partitions": "额外分区",
+    "partitionsDesc": "添加需要挂载的额外分区",
     "autoPlaceholder": "自动",
     "reload": "重载",
     "save": "保存",
@@ -72,7 +84,11 @@
     "webui": "WebUI 设置",
     "fixBottomNav": "三按钮导航栏适配",
     "fixBottomNavOn": "已开启三按钮适配",
-    "fixBottomNavOff": "已关闭三按钮适配"
+    "fixBottomNavOff": "已关闭三按钮适配",
+    "coexistenceWarning": "必须先开启共存选项才能禁用 Umount",
+    "pathPlaceholder": "请输入路径...",
+    "invalidModuleDir": "模块路径无效",
+    "invalidTempDir": "临时路径无效"
   },
   "modules": {
     "title": "模块模式",
@@ -102,6 +118,9 @@
     "noConflicts": "未检测到文件冲突。",
     "conflictError": "检测失败",
     "placeholder": "例如 system/fonts",
+    "statusMounted": "已挂载",
+    "statusUnmounted": "未挂载",
+    "unmountedMsg": "此模块当前未挂载。",
     "modes": {
       "auto": "OverlayFS",
       "magic": "Magic Mount",

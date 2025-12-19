@@ -30,6 +30,12 @@
       return 'var(--md-sys-color-primary)';
   }
 
+  function getDiagLabel(level: string) {
+      if (level === 'Critical') return store.L?.status?.diagCritical ?? level;
+      if (level === 'Warning') return store.L?.status?.diagWarning ?? level;
+      return store.L?.status?.diagInfo ?? level;
+  }
+
   function getStoragePercent() {
     if (!store.storage?.percent) return 0;
     return parseFloat(store.storage.percent) / 100;
@@ -96,10 +102,10 @@
                 {store.storage.type?.toUpperCase()}
               </span>
              {/if}
-          </div>
+        </div>
         <div class="storage-value-group">
             <span class="storage-value">{store.storage?.percent ?? '0%'}</span>
-            <span class="storage-unit">Used</span>
+            <span class="storage-unit">{store.L?.common?.used ?? 'Used'}</span>
         </div>
       </div>
       
@@ -182,7 +188,12 @@
           <Skeleton width="50%" height="16px" />
         {:else}
           <span class="info-val {store.storage?.hymofs_available ? 'text-success' : 'text-disabled'}">
-            {store.storage?.hymofs_available ? `Active${store.storage.hymofs_version ? ` (v${store.storage.hymofs_version})` : ''}` : 'Not Detected'}
+            {#if store.storage?.hymofs_available}
+               {store.L?.status?.hymofsActive ?? 'Active'} 
+               {store.storage.hymofs_version ? `(v${store.storage.hymofs_version})` : ''}
+            {:else}
+               {store.L?.status?.hymofsNotDetected ?? 'Not Detected'}
+            {/if}
           </span>
         {/if}
       </div>
@@ -221,14 +232,17 @@
         </div>
         <span class="mode-count">{store.modeStats?.magic ?? 0}</span>
       </div>
-      <div class="mode-divider"></div>
-      <div class="mode-row">
-        <div class="mode-name">
-          <div class="dot" style="background-color: var(--md-sys-color-primary)"></div>
-          HymoFS
-        </div>
-        <span class="mode-count">{store.modeStats?.hymofs || 0}</span>
-      </div>
+      
+      {#if store.storage?.hymofs_available}
+          <div class="mode-divider"></div>
+          <div class="mode-row">
+            <div class="mode-name">
+              <div class="dot" style="background-color: var(--md-sys-color-primary)"></div>
+              HymoFS
+            </div>
+            <span class="mode-count">{store.modeStats?.hymofs || 0}</span>
+          </div>
+      {/if}
     {/if}
   </div>
 
@@ -246,7 +260,7 @@
             {#each store.diagnostics as issue}
                 <div class="diagnostic-item">
                     <div class="diag-level" style="color: {getDiagColor(issue.level)}">
-                        {issue.level}
+                        {getDiagLabel(issue.level)}
                     </div>
                     <div class="diag-content">
                         <div class="diag-context">{issue.context}</div>
