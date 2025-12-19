@@ -1,88 +1,115 @@
-<img src="icon.svg" align="right" width="120" />
-
 # Meta-Hybrid Mount
+
+<img src="https://raw.githubusercontent.com/YuzakiKokuban/meta-hybrid_mount/master/icon.svg" align="right" width="120" />
 
 ![Language](https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust)
 ![Platform](https://img.shields.io/badge/Platform-Android-green?style=flat-square&logo=android)
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square)
 
-**Meta-Hybrid Mount** is a next-generation hybrid mount metamodule designed for KernelSU. Written in native Rust, it intelligently combines **OverlayFS** and **Magic Mount** technologies to provide a more efficient, stable, and stealthy module management experience compared to traditional mounting solutions.
+**Meta-Hybrid Mount** is a next-generation hybrid mount metamodule designed for KernelSU and APatch. Written in native Rust, it orchestrates multiple mounting strategies—including the cutting-edge **HymoFS**, **OverlayFS**, and **Magic Mount**—to provide the ultimate module management experience with superior performance, stability, and stealth.
 
-This project includes a modern WebUI management interface built with Svelte, allowing users to monitor status, manage module modes, and view logs in real-time.
+This project features a modern WebUI built with Svelte, offering real-time status monitoring, granular module configuration, and log inspection.
 
-**[ 🇨🇳 中文 (Chinese) ](README_ZH.md)**
+**[🇨🇳 中文 (Chinese)](https://github.com/YuzakiKokuban/meta-hybrid_mount/blob/master/README_ZH.md)**
 
 ---
 
 ## ✨ Core Features
 
-### 🚀 True Hybrid Engine
-* **Smart Strategy**: Prioritizes **OverlayFS** to achieve optimal I/O performance and filesystem merging capabilities.
-* **Automatic Fallback**: Automatically and seamlessly falls back to the **Magic Mount** mechanism when OverlayFS mounting fails, the target is unsupported, or when forcibly specified by the user.
-* **Rust Native**: The core daemon is written in Rust, utilizing `rustix` for direct system calls, ensuring safety and high efficiency.
+### 🚀 Triple Hybrid Engine
+
+Meta-Hybrid intelligently selects the best mounting strategy for each module:
+
+1. **HymoFS (Kernel-Level)**: The most advanced mode. It utilizes a custom kernel interface (`/dev/hymo_ctl`) to perform path redirection and file hiding at the kernel level.
+    * **Zero Overhead**: Direct kernel path resolution without the performance cost of traditional mounts.
+    * **Deep Stealth**: Supports hiding overlay extended attributes (xattrs) and specific paths.
+2. **OverlayFS**: Efficient filesystem merging technology that delivers excellent I/O performance.
+3. **Magic Mount**: A reliable fallback mechanism used when other methods are unavailable, ensuring maximum compatibility.
 
 ### 🛡️ Diagnostics & Safety
-* **Conflict Monitor**: Detects and reports file path conflicts between different modules, helping you understand which module overrides which file.
-* **System Health**: Built-in diagnostics tool to identify dead symlinks, invalid mount points, and potential bootloop risks before they happen.
-* **Paw Pad (Stealth)**: Optional feature to remove `sysfs` traces, making the mount environment harder to detect.
 
-### 🔄 Smart Sync
-* **Fast Boot**: Abandons the inefficient pattern of full copying on every boot. The daemon compares `module.prop` checksums and only synchronizes new or modified modules.
-* **Dynamic TempDir**: Automatically identifies and utilizes existing empty system directories (e.g., `/debug_ramdisk`) as temporary mount points to minimize traces on `/data`.
+* **Conflict Monitor**: Detects file path conflicts between modules, helping you resolve overrides effectively.
+* **System Health**: Built-in diagnostics to identify dead symlinks, invalid mount points, and potential bootloop risks.
+* **Smart Sync**: Only synchronizes changed modules by comparing `module.prop` checksums, drastically reducing boot time.
+
+### 🔧 Advanced Control
+
+* **Dynamic TempDir**: Automatically utilizes existing empty system directories (e.g., `/debug_ramdisk`) as temporary mount points to minimize traces on `/data`.
+* **Umount Strategies**: Configurable unmount behaviors to support complex environments (e.g., ZygiskSU coexistence).
+
+---
+
+## ⚙️ Configuration
+
+The configuration file is located at `/data/adb/meta-hybrid/config.toml`. You can edit it manually or via the WebUI.
+
+| Key | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `moduledir` | string | `/data/adb/modules/` | Directory where modules are installed. |
+| `mountsource` | string | `KSU` | Identify the mount source type. |
+| `partitions` | list | `[]` | Specific partitions to mount (empty = auto-detect). |
+| `hymofs_stealth` | bool | `true` | Enable HymoFS stealth features (hide traces). |
+| `hymofs_debug` | bool | `false` | Enable verbose debug logging for HymoFS. |
+| `enable_nuke` | bool | `false` | Enable aggressive cleanup mode. |
+| `force_ext4` | bool | `false` | Force creation of ext4 images for loop devices. |
+| `disable_umount` | bool | `false` | Disable unmounting (for troubleshooting). |
+| `allow_umount_coexistence` | bool | `false` | Allow coexistence with other unmount solutions. |
+| `dry_run` | bool | `false` | Simulate operations without making changes. |
+| `verbose` | bool | `false` | Enable detailed logging. |
+
+---
 
 ## 🖥️ WebUI
 
-The built-in WebUI allows you to:
-* **Dashboard**: View storage usage, kernel info, and mount mode statistics.
-* **Modules**: Manage per-module mount strategies (Overlay/Magic/HymoFS) and check for file conflicts.
-* **Config**: visually edit `config.toml` parameters.
-* **Logs**: Real-time daemon log viewer.
+Access the WebUI (via **KernelSU Manager** or browser) to:
+
+* **Dashboard**: Monitor storage, HymoFS status, and kernel version.
+* **Modules**: Toggle mount modes (Overlay/Magic/HymoFS) per module and view file conflicts.
+* **Config**: Visually edit `config.toml` parameters.
+* **Logs**: Stream the daemon logs in real-time.
 
 ---
 
 ## 🔨 Build Guide
 
-This project uses Rust's `xtask` pattern for building, integrating the WebUI build process.
+This project uses Rust's `xtask` pattern for a unified build process.
 
 ### Requirements
-* **Rust**: Nightly toolchain (Recommended to use `rustup`)
+
+* **Rust**: Nightly toolchain (via `rustup`)
 * **Android NDK**: Version r27+
-* **Node.js**: v20+ (For building WebUI)
-* **Java**: JDK 17 (For environment configuration)
+* **Node.js**: v20+ (for WebUI)
+* **Java**: JDK 17 (for environment)
 
 ### Build Commands
 
-1.  **Clone Repository**
+1. **Clone Repository**
+
     ```bash
     git clone --recursive [https://github.com/YuzakiKokuban/meta-hybrid_mount.git](https://github.com/YuzakiKokuban/meta-hybrid_mount.git)
     cd meta-hybrid_mount
     ```
 
-2.  **Execute Build**
-    Use `xtask` to automatically handle WebUI compilation, Rust cross-compilation, and Zip packaging:
+2. **Full Build (Release)**
+    Compiles WebUI, Rust binaries (arm64, x64, riscv64), and packages the ZIP:
+
     ```bash
-    # Build Release version (Includes WebUI and binaries for all architectures)
     cargo run -p xtask -- build --release
     ```
 
-    The build artifacts will be located in the `output/` directory.
+    Artifacts will be in `output/`.
 
-3.  **Build Binaries Only (Skip WebUI)**
-    If you only modified Rust code, you can skip the WebUI build to save time:
+3. **Binary Only**
+    Skip WebUI build for faster iteration on Rust code:
+
     ```bash
     cargo run -p xtask -- build --release --skip-webui
     ```
-
-### Supported Architectures
-The build script compiles the following architectures by default:
-* `aarch64-linux-android` (arm64)
-* `x86_64-linux-android` (x64)
-* `riscv64-linux-android` (riscv64)
 
 ---
 
 ## 🤝 Contributions & Credits
 
 * Thanks to all contributors in the open-source community.
-* Our sister project [Hymo](https://github.com/Anatdx/hymo)
-* This project is licensed under the GPL-3.0 License.
+* **Sister Project**: [Hymo](https://github.com/Anatdx/hymo) - The kernel-side powerhouse behind HymoFS.
+* **License**: This project is licensed under the [GPL-3.0 License](https://github.com/YuzakiKokuban/meta-hybrid_mount/blob/master/LICENSE).
