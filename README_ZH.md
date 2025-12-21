@@ -5,6 +5,7 @@
 ![Language](https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust)
 ![Platform](https://img.shields.io/badge/Platform-Android-green?style=flat-square&logo=android)
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square)
+[![Telegram](https://img.shields.io/badge/Telegram-@hybridmountchat-2CA5E0?style=flat-square&logo=telegram)](https://t.me/hybridmountchat)
 
 **Meta-Hybrid Mount** 是专为 KernelSU 和 APatch 设计的下一代混合挂载元模块。它采用原生 Rust 编写，通过智能调度 **HymoFS**、**OverlayFS** 和 **Magic Mount** 三种挂载策略，为您提供性能卓越、稳定且高度隐蔽的模块管理体验。
 
@@ -112,4 +113,4 @@ Meta-Hybrid 能够为每个模块智能选择最佳挂载方案：
 
 * 感谢开源社区的所有贡献者。
 * **姊妹项目**: [Hymo](https://github.com/Anatdx/hymo) - HymoFS 强大的内核侧驱动支持。
-* **开源协议**: 本项目遵循 [GPL-3.0 协议](https://github.com/YuzakiKokuban/meta-hybrid_mount/blob/master/LICENSE)。
+* **开源协议**: 本项目遵循 [GPL-3.0 协议](https://github.com/YuzakiKokuban/meta-hybrid_mount/blob/master/LICENSE)
