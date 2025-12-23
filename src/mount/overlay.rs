@@ -46,7 +46,7 @@ fn mount_overlayfs(
         dest,
         "overlay",
         MountFlags::empty(),
-        Some(&data_c),
+        Some(data_c.as_c_str()),
     )
     .with_context(|| format!("Legacy mount failed for {}", dest.display()))?;
 
