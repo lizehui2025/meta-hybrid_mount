@@ -30,7 +30,7 @@
   },
   "status": {
     "storageTitle": "儲存空間",
-    "storageDesc": "modules.img 使用情況",
+    "storageDesc": "modules 使用情況",
     "moduleTitle": "模組概覽",
     "moduleActive": "活躍模組",
     "modeStats": "模式統計",

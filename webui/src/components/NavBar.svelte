@@ -15,7 +15,6 @@
   let navContainer = $state<HTMLElement>();
   let tabRefs = $state<Record<string, HTMLButtonElement>>({});
 
-  // 调整顺序：Status -> Config -> Modules -> Logs -> Granary -> Winnowing -> Info
   const ALL_TABS = [
     { id: 'status', icon: ICONS.home },
     { id: 'config', icon: ICONS.settings },

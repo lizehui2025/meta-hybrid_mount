@@ -30,7 +30,7 @@
   },
   "status": {
     "storageTitle": "ストレージ",
-    "storageDesc": "modules.img の使用状況",
+    "storageDesc": "modulesの使用状況",
     "moduleTitle": "モジュール",
     "moduleActive": "有効なモジュール",
     "modeStats": "モード統計",

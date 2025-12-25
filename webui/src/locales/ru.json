@@ -30,7 +30,7 @@
   },
   "status": {
     "storageTitle": "Хранилище",
-    "storageDesc": "Использование modules.img",
+    "storageDesc": "Использование modules",
     "moduleTitle": "Модули",
     "moduleActive": "Активные модули",
     "modeStats": "Статистика",

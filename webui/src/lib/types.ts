@@ -45,6 +45,7 @@ export interface StorageStatus {
   percent: string;
   type: 'tmpfs' | 'ext4' | 'erofs' | 'unknown' | null;
   error?: string;
+  hymofs_available?: boolean;
 }
 
 export interface SystemInfo {

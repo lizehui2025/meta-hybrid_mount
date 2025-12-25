@@ -30,7 +30,7 @@
   },
   "status": {
     "storageTitle": "存储空间",
-    "storageDesc": "modules.img 使用情况",
+    "storageDesc": "modules 使用情况",
     "moduleTitle": "模块概览",
     "moduleActive": "活跃模块",
     "modeStats": "模式统计",

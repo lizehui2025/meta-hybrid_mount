@@ -28,7 +28,7 @@
   },
   "status": {
     "storageTitle": "Storage",
-    "storageDesc": "Usage of modules.img",
+    "storageDesc": "Usage of modules",
     "moduleTitle": "Modules",
     "moduleActive": "Active Modules",
     "modeStats": "Mode Statistics",

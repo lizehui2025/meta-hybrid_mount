@@ -30,7 +30,7 @@
   },
   "status": {
     "storageTitle": "Almacenamiento",
-    "storageDesc": "Uso de modules.img",
+    "storageDesc": "Uso de modules",
     "moduleTitle": "Módulos",
     "moduleActive": "Activos",
     "modeStats": "Estadísticas",
