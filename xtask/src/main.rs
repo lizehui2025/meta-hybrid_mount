@@ -6,9 +6,11 @@ use clap::{Parser, Subcommand, ValueEnum};
 use fs_extra::dir::{self, CopyOptions};
 use std::{
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
 };
+use tempfile::NamedTempFile;
 use zip::{write::FileOptions, CompressionMethod};
 mod zip_ext;
 use crate::zip_ext::zip_create_from_directory_with_options;
@@ -66,6 +68,10 @@ enum Commands {
         skip_webui: bool,
         #[arg(long, value_enum)]
         arch: Option<Arch>,
+        #[arg(long)]
+        key: Option<PathBuf>,
+        #[arg(long)]
+        cert: Option<PathBuf>,
     },
     Lint,
 }
@@ -78,8 +84,10 @@ fn main() -> Result<()> {
             release,
             skip_webui,
             arch,
+            key,
+            cert,
         } => {
-            build_full(&root, release, skip_webui, arch)?;
+            build_full(&root, release, skip_webui, arch, key, cert)?;
         }
         Commands::Lint => {
             run_clippy(&root)?;
@@ -128,6 +136,8 @@ fn build_full(
     release: bool,
     skip_webui: bool,
     target_arch: Option<Arch>,
+    key_arg: Option<PathBuf>,
+    cert_arg: Option<PathBuf>,
 ) -> Result<()> {
     let output_dir = root.join("output");
     let stage_dir = output_dir.join("staging");
@@ -182,6 +192,48 @@ fn build_full(
         .compression_level(Some(9));
     zip_create_from_directory_with_options(&zip_file, &stage_dir, |_| zip_options)?;
     println!(":: Build Complete: {}", zip_file.display());
+    let (signing_key, signing_cert, _temp_guards) = resolve_signing_creds(key_arg, cert_arg)?;
+    if let (Some(k), Some(c)) = (signing_key, signing_cert) {
+        sign_module(&zip_file, &k, &c)?;
+    }
+    Ok(())
+}
+
+fn resolve_signing_creds(
+    arg_key: Option<PathBuf>,
+    arg_cert: Option<PathBuf>,
+) -> Result<(Option<PathBuf>, Option<PathBuf>, Vec<NamedTempFile>)> {
+    if let (Some(k), Some(c)) = (arg_key, arg_cert) {
+        return Ok((Some(k), Some(c), vec![]));
+    }
+    if let (Ok(k_content), Ok(c_content)) = (
+        env::var("META_HYBRID_SIGN_KEY"),
+        env::var("META_HYBRID_SIGN_CERT"),
+    ) {
+        let mut k_file = NamedTempFile::new()?;
+        k_file.write_all(k_content.as_bytes())?;
+        let mut c_file = NamedTempFile::new()?;
+        c_file.write_all(c_content.as_bytes())?;
+        let k_path = k_file.path().to_path_buf();
+        let c_path = c_file.path().to_path_buf();
+        return Ok((Some(k_path), Some(c_path), vec![k_file, c_file]));
+    }
+    Ok((None, None, vec![]))
+}
+
+fn sign_module(zip_path: &Path, key_path: &Path, cert_path: &Path) -> Result<()> {
+    let status = Command::new("ksusig")
+        .arg("sign")
+        .arg(zip_path)
+        .arg("--key")
+        .arg(key_path)
+        .arg("--cert")
+        .arg(cert_path)
+        .status()
+        .context("Failed to execute ksusig")?;
+    if !status.success() {
+        anyhow::bail!("ksusig signing failed");
+    }
     Ok(())
 }
 

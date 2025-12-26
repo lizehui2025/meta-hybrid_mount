@@ -79,7 +79,13 @@ jobs:
           
           sed -i "0,/^version = .*/s//version = \"${TAG_NAME#v}\"/" Cargo.toml
 
+      - name: Install ksusig
+        run: cargo install --git https://github.com/Kernel-SU/ksusig
+
       - name: Build Release Package
+        env:
+          META_HYBRID_SIGN_KEY: ${{ secrets.SIGNING_KEY }}
+          META_HYBRID_SIGN_CERT: ${{ secrets.SIGNING_CERT }}
         run: |
           cargo run -p xtask -- build --release
 

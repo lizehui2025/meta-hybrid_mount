@@ -29,6 +29,7 @@ walkdir = "2.5.0"
 nix = { version = "0.30.1", features = ["fs", "ioctl", "mount"] }
 regex-lite = "0.1.8"
 oncelock = "0.1.0-alpha.0"
+ksusig = { git = "https://github.com/Kernel-SU/ksusig", version = "0.3.0" }
 [target.aarch64-linux-android.dependencies]
 android_logger = "0.15"
 [profile.release]
