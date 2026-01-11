@@ -75,6 +75,13 @@ pub fn check_ksu() {
     KSU.store(status, std::sync::atomic::Ordering::Relaxed);
 }
 
+pub fn detect_mount_source() -> String {
+    if ksu::version().is_some() {
+        return "KSU".to_string();
+    }
+    "APatch".to_string()
+}
+
 pub fn init_logging(
     verbose: bool,
     dry_run: bool,
@@ -209,6 +216,20 @@ pub fn check_zygisksu_enforce_status() -> bool {
     std::fs::read_to_string("/data/adb/zygisksu/denylist_enforce")
         .map(|s| s.trim() != "0")
         .unwrap_or(false)
+}
+
+pub fn ensure_clean_dir<P>(dir: P) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = dir.as_ref();
+    tracing::debug!("ensure_clean_dir: {}", path.display());
+    if path.exists() {
+        tracing::debug!("ensure_clean_dir: {} exists, remove it", path.display());
+        std::fs::remove_dir_all(path)?;
+    }
+    create_dir_all(path)?;
+    Ok(())
 }
 
 fn copy_extended_attributes(src: &Path, dst: &Path) -> Result<()> {

@@ -17,8 +17,13 @@ pub struct AutoMountExt4 {
 #[allow(dead_code)]
 impl AutoMountExt4 {
     #[cfg(any(target_os = "linux", target_os = "android"))]
-    pub fn try_new(source: &str, target: &str, auto_umount: bool) -> Result<Self> {
-        let path = Path::new(source);
+    pub fn try_new<P>(source: P, target: P, auto_umount: bool) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        use rustix::path::Arg;
+
+        let path = source.as_ref();
         if !path.exists() {
             println!("Source path does not exist");
         } else {
@@ -31,15 +36,18 @@ impl AutoMountExt4 {
             }
         }
 
-        mount_ext4(source, target)?;
+        mount_ext4(source, target.as_ref())?;
         Ok(Self {
-            target: target.to_string(),
+            target: target.as_ref().as_str()?.to_string(),
             auto_umount,
         })
     }
 
     #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    pub fn try_new(_src: &str, _mnt: &str, _auto_umount: bool) -> Result<Self> {
+    pub fn try_new<P>(_src: P, _mnt: P, _auto_umount: bool) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         unimplemented!()
     }
 

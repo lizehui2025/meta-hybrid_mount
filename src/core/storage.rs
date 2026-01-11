@@ -1,9 +1,11 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
+use jwalk::WalkDir;
 use rustix::{
     fs::Mode,
     mount::{UnmountFlags, unmount},
@@ -24,13 +26,9 @@ const DEFAULT_SELINUX_CONTEXT: &str = "u:object_r:system_file:s0";
 #[derive(Debug, Clone)]
 pub enum OverlayLayout {
     Contained,
-    Split {
-        rw_base: PathBuf,
-    },
+    Split { rw_base: PathBuf },
     #[allow(dead_code)]
-    Direct {
-        rw_base: PathBuf,
-    },
+    Direct { rw_base: PathBuf },
 }
 
 pub struct StorageHandle {
@@ -104,10 +102,42 @@ pub fn get_usage(path: &Path) -> (u64, u64, u8) {
     }
 }
 
+fn calculate_total_size(path: &Path) -> Result<u64> {
+    let mut total_size = 0;
+    if path.is_dir() {
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
+            if file_type.is_file() {
+                total_size += entry.metadata()?.len();
+            } else if file_type.is_dir() {
+                total_size += calculate_total_size(&entry.path())?;
+            }
+        }
+    }
+    Ok(total_size)
+}
+
+fn check_image<P>(img: P) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = img.as_ref();
+    let path_str = path.to_str().context("Invalid path string")?;
+    let result = Command::new("e2fsck")
+        .args(["-yf", path_str])
+        .status()
+        .with_context(|| format!("Failed to exec e2fsck {}", path.display()))?;
+    let code = result.code();
+
+    tracing::info!("e2fsck exit code: {}", code.unwrap_or(-1));
+    Ok(())
+}
+
 pub fn setup(
     mnt_base: &Path,
     img_path: &Path,
-    _moduledir: &Path,
+    moduledir: &Path,
     force_ext4: bool,
     use_erofs: bool,
     mount_source: &str,
@@ -159,7 +189,7 @@ pub fn setup(
         });
     }
 
-    let handle = setup_ext4_image(mnt_base, img_path)?;
+    let handle = setup_ext4_image(mnt_base, img_path, moduledir)?;
 
     try_hide(mnt_base);
 
@@ -182,26 +212,70 @@ fn try_setup_tmpfs(target: &Path, mount_source: &str) -> Result<bool> {
     Ok(false)
 }
 
-fn setup_ext4_image(target: &Path, img_path: &Path) -> Result<StorageHandle> {
-    if !img_path.exists() {
-        bail!(
-            "Modules image not found at {} and automatic creation (mkfs.ext4) has been disabled.",
-            img_path.display()
+fn setup_ext4_image(target: &Path, img_path: &Path, moduledir: &Path) -> Result<StorageHandle> {
+    if !img_path.exists() || check_image(img_path).is_err() {
+        tracing::info!("Modules image missing or corrupted. Fallback to creation.");
+
+        if let Err(e) = utils::ensure_clean_dir(moduledir) {
+            tracing::warn!("Failed to clean moduledir: {}", e);
+        }
+
+        tracing::info!("- Preparing image");
+
+        let total_size = calculate_total_size(moduledir)?;
+        tracing::info!(
+            "Total size of files in '{}': {} bytes",
+            moduledir.display(),
+            total_size,
         );
+
+        let grow_size = 128 * 1024 * 1024 + total_size;
+
+        fs::File::create(img_path)
+            .context("Failed to create ext4 image file")?
+            .set_len(grow_size)
+            .context("Failed to extend ext4 image")?;
+
+        let result = Command::new("mkfs.ext4")
+            .arg("-b")
+            .arg("1024")
+            .arg(img_path)
+            .stdout(std::process::Stdio::piped())
+            .output()?;
+
+        ensure!(
+            result.status.success(),
+            "Failed to format ext4 image: {}",
+            String::from_utf8(result.stderr)?
+        );
+
+        tracing::info!("Checking Image");
+        check_image(img_path)?;
     }
 
     utils::lsetfilecon(img_path, "u:object_r:ksu_file:s0").ok();
 
-    let src = img_path.to_string_lossy();
-    let tgt = target.to_string_lossy();
-
-    if overlay_utils::AutoMountExt4::try_new(&src, &tgt, false).is_err() {
+    tracing::info!("- Mounting image");
+    if overlay_utils::AutoMountExt4::try_new(img_path, target, false).is_err() {
         if utils::repair_image(img_path).is_ok() {
-            overlay_utils::AutoMountExt4::try_new(&src, &tgt, false)
+            overlay_utils::AutoMountExt4::try_new(img_path, target, false)
                 .context("Failed to mount modules.img after repair")
                 .map(|_| ())?;
         } else {
             bail!("Failed to repair modules.img");
+        }
+    }
+
+    tracing::info!(
+        "mounted {} to {}",
+        img_path.display(),
+        target.display()
+    );
+
+    // Ensure correct context for all files in the mounted image
+    for dir_entry in WalkDir::new(target).parallelism(jwalk::Parallelism::Serial) {
+        if let Some(path) = dir_entry.ok().map(|dir_entry| dir_entry.path()) {
+            let _ = utils::lsetfilecon(&path, DEFAULT_SELINUX_CONTEXT);
         }
     }
 
