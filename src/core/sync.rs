@@ -18,12 +18,6 @@ pub fn perform_sync(modules: &[Module], target_base: &Path) -> Result<()> {
     prune_orphaned_modules(modules, target_base)?;
 
     modules.par_iter().for_each(|module| {
-        if matches!(module.rules.default_mode, MountMode::Magic) {
-            tracing::debug!("Skipping sync for Magic Mount module: {}", module.id);
-
-            return;
-        }
-
         let dst = target_base.join(&module.id);
 
         let has_content = defs::BUILTIN_PARTITIONS.iter().any(|p| {
