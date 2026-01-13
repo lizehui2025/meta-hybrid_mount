@@ -13,6 +13,7 @@ import '@material/web/icon/icon.js';
 export default function ModulesTab() {
   const [searchQuery, setSearchQuery] = createSignal('');
   const [filterType, setFilterType] = createSignal('all');
+  const [showUnmounted, setShowUnmounted] = createSignal(false); // 默认不显示未挂载
   const [expandedId, setExpandedId] = createSignal<string | null>(null);
   const [initialRulesSnapshot, setInitialRulesSnapshot] = createSignal<Record<string, string>>({});
   const [isSaving, setIsSaving] = createSignal(false);
@@ -66,9 +67,16 @@ export default function ModulesTab() {
 
   const filteredModules = createMemo(() => store.modules.filter(m => {
     const q = searchQuery().toLowerCase();
+    if (!m.is_mounted && !showUnmounted()) {
+        return false;
+    }
     const matchSearch = m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q);
-    const matchFilter = filterType() === 'all' || m.mode === filterType();
-    return matchSearch && matchFilter;
+    if (!matchSearch) return false;
+    if (filterType() !== 'all' && m.mode !== filterType()) {
+        return false;
+    }
+
+    return true;
   }));
 
   function toggleExpand(id: string) {
@@ -82,17 +90,13 @@ export default function ModulesTab() {
   function getModeLabel(mod: Module) {
       const m = store.L.modules?.modes;
       if (!mod.is_mounted) return m?.none ?? 'Unmounted';
-      
-      const mode = mod.rules.default_mode;
-      if (mode === 'magic') return m?.magic ?? 'Magic';
-      if (mode === 'ignore') return m?.ignore ?? 'Ignore';
+      if (mod.mode === 'magic') return m?.magic ?? 'Magic';
       return m?.auto ?? 'Overlay';
   }
 
   function getModeClass(mod: Module) {
       if (!mod.is_mounted) return 'mode-ignore';
-      if (mod.rules.default_mode === 'magic') return 'mode-magic';
-      if (mod.rules.default_mode === 'ignore') return 'mode-ignore';
+      if (mod.mode === 'magic') return 'mode-magic';
       return 'mode-auto';
   }
 
@@ -120,6 +124,17 @@ export default function ModulesTab() {
                 />
                 
                 <div class="filter-group">
+                    <button 
+                        class="btn-icon"
+                        onClick={() => setShowUnmounted(!showUnmounted())}
+                        title={showUnmounted() ? "Hide unmounted" : "Show unmounted"}
+                        style={{ color: showUnmounted() ? 'var(--md-sys-color-primary)' : 'var(--md-sys-color-outline)' }}
+                    >
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                            <path d={showUnmounted() ? ICONS.visibility : ICONS.visibility_off} fill="currentColor"/>
+                        </svg>
+                    </button>
+
                     <select 
                         class="filter-select" 
                         value={filterType()} 
@@ -128,7 +143,7 @@ export default function ModulesTab() {
                         title={store.L.modules?.filterLabel || "Filter modules"}
                     >
                         <option value="all">{store.L.modules?.filterAll}</option>
-                        <option value="auto">Overlay</option>
+                        <option value="overlayfs">Overlay</option> {/* Fixed value from overlay to overlayfs */}
                         <option value="magic">Magic</option>
                     </select>
                 </div>
@@ -137,10 +152,17 @@ export default function ModulesTab() {
 
         <div class="modules-list">
             <Show when={!store.loading.modules} fallback={
-                <For each={Array(4)}>{() => <Skeleton height="80px" borderRadius="20px" />}</For>
+                <For each={Array(6)}>{() => <Skeleton height="64px" borderRadius="16px" />}</For>
             }>
                 <Show when={filteredModules().length > 0} fallback={
-                    <div class="empty-state">No modules found.</div>
+                    <div class="empty-state">
+                        <div>No modules found.</div>
+                        <Show when={!showUnmounted()}>
+                            <div style={{ "font-size": "12px", "opacity": "0.7", "margin-top": "8px" }}>
+                                Unmounted modules are hidden.
+                            </div>
+                        </Show>
+                    </div>
                 }>
                     <For each={filteredModules()}>
                         {(mod) => (
@@ -152,9 +174,6 @@ export default function ModulesTab() {
                                   tabIndex={0}
                                   onKeyDown={(e) => e.key === 'Enter' && toggleExpand(mod.id)}
                                 >
-                                    <div class="module-icon-box">
-                                        {mod.name.charAt(0).toUpperCase()}
-                                    </div>
                                     <div class="module-info">
                                         <div class="module-name">{mod.name}</div>
                                         <div class="module-meta">

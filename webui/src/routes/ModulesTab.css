@@ -1,8 +1,8 @@
 .modules-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 16px 100px 16px;
+  gap: 12px;
+  padding: 12px 16px 100px 16px;
   max-width: 800px;
   width: 100%;
   margin: 0 auto;
@@ -15,15 +15,15 @@
   position: sticky;
   top: 0;
   z-index: 50;
-  margin: -16px -16px 0 -16px;
-  padding: 16px 16px 8px 16px;
-  background: linear-gradient(180deg, var(--md-sys-color-background) 80%, transparent);
+  margin: -12px -16px 0 -16px;
+  padding: 12px 16px 8px 16px;
+  background: linear-gradient(180deg, var(--md-sys-color-background) 85%, transparent);
 }
 
 .search-bar {
   background-color: var(--md-sys-color-surface-container-high);
-  border-radius: 28px;
-  height: 56px;
+  border-radius: 24px; /* 圆角稍微减小以匹配更紧凑的设计 */
+  height: 48px; /* 高度减小 */
   display: flex;
   align-items: center;
   padding: 0 16px;
@@ -37,8 +37,8 @@
 }
 
 .search-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   fill: var(--md-sys-color-on-surface);
   opacity: 0.7;
   flex-shrink: 0;
@@ -49,7 +49,7 @@
   border: none;
   background: transparent;
   height: 100%;
-  font-size: 16px;
+  font-size: 14px; /* 字体减小 */
   color: var(--md-sys-color-on-surface);
   outline: none;
   min-width: 0;
@@ -64,14 +64,30 @@
 .filter-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.btn-icon:hover {
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 .filter-select {
   background: transparent;
   border: none;
   color: var(--md-sys-color-primary);
-  font-size: 14px;
+  font-size: 13px; /* 字体减小 */
   font-weight: 500;
   outline: none;
   cursor: pointer;
@@ -86,12 +102,12 @@
 .modules-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .module-card {
   background-color: var(--md-sys-color-surface-container-low);
-  border-radius: 20px;
+  border-radius: 16px;
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
   position: relative;
@@ -107,80 +123,67 @@
 }
 
 .module-header {
-  padding: 16px 20px;
+  padding: 12px 16px; /* 内边距减小，增加横向空间利用率 */
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   cursor: pointer;
-}
-
-.module-icon-box {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background-color: var(--md-sys-color-surface-container-high);
-  color: var(--md-sys-color-on-surface-variant);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.module-card.expanded .module-icon-box {
-  background-color: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+  min-height: 64px;
 }
 
 .module-info {
   flex: 1;
-  min-width: 0; /* 关键：允许Flex子项收缩到内容宽度以下，解决文本溢出挤压问题 */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .module-name {
-  font-size: 16px;
+  font-size: 14.5px;
   font-weight: 500;
   color: var(--md-sys-color-on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .module-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--md-sys-color-on-surface-variant);
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   white-space: nowrap;
-  overflow: hidden; /* 防止子元素溢出 */
+  overflow: hidden;
 }
 
 .module-id {
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.9;
 }
 
 .version-badge {
   background-color: var(--md-sys-color-surface-variant);
-  padding: 0 6px;
+  padding: 0 5px;
   border-radius: 4px;
   font-family: var(--md-ref-typeface-mono);
-  flex-shrink: 0; /* 即使空间不够，版本号也不要被挤扁 */
+  flex-shrink: 0;
+  height: 16px;
+  line-height: 16px;
 }
 
 .mode-indicator {
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
+  padding: 4px 8px; /* 减小 Badge 大小 */
+  border-radius: 6px;
+  font-size: 11px; /* 字体减小 */
   font-weight: 600;
   text-transform: uppercase;
-  flex-shrink: 0; /* 关键：防止被左侧长文本挤压 */
-  margin-left: 8px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  letter-spacing: 0.3px;
 }
 
 .mode-auto {
@@ -210,14 +213,14 @@
 }
 
 .module-body-inner {
-  overflow: hidden; /* 必须隐藏溢出才能实现动画 */
+  overflow: hidden;
 }
 
 .module-body-content {
-  padding: 0 20px 24px 20px;
+  padding: 0 16px 16px 16px; /* 内容区域内边距 */
   border-top: 1px solid var(--md-sys-color-outline-variant);
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-8px);
   transition: opacity 0.2s ease, transform 0.2s ease;
   transition-delay: 0s;
 }
@@ -225,35 +228,35 @@
 .module-card.expanded .module-body-content {
   opacity: 1;
   transform: translateY(0);
-  transition-delay: 0.1s; /* 稍微延迟内容出现，体验更顺滑 */
+  transition-delay: 0.1s;
 }
 
 .body-section {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .section-label {
-  font-size: 12px;
+  font-size: 11px; /* 字体减小 */
   font-weight: 500;
   color: var(--md-sys-color-primary);
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   letter-spacing: 0.5px;
 }
 
 .module-desc {
-  font-size: 14px;
+  font-size: 13px; /* 字体减小 */
   color: var(--md-sys-color-on-surface-variant);
-  line-height: 1.5;
-  margin-bottom: 16px;
-  margin-top: 16px; /* 调整顶部间距 */
+  line-height: 1.45;
+  margin-bottom: 12px;
+  margin-top: 12px;
 }
 
 .strategy-selector {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .strategy-option {
@@ -261,8 +264,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10px;
-  border-radius: 12px;
+  padding: 8px; /* 选项卡片更紧凑 */
+  border-radius: 10px;
   border: 1px solid var(--md-sys-color-outline);
   cursor: pointer;
   transition: all 0.2s;
@@ -282,11 +285,11 @@
 
 .opt-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px; /* 字体减小 */
 }
 
 .opt-sub {
-  font-size: 10px;
+  font-size: 10px; /* 字体减小 */
   opacity: 0.8;
 }
 
@@ -294,4 +297,5 @@
   text-align: center;
   padding: 48px 0;
   color: var(--md-sys-color-outline);
+  font-size: 14px;
 }
