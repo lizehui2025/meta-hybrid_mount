@@ -7,6 +7,10 @@
             "type": "add",
             "name": "Hybrid Mount Developers",
             "link": "https://github.com/Hybrid-Mount"
+        },
+        {
+            "type": "remove",
+            "name": "由崎黑板"
         }
     ]
 }
