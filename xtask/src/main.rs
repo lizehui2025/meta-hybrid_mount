@@ -27,8 +27,6 @@ enum Arch {
     Arm,
     #[value(name = "x86_64")]
     X86_64,
-    #[value(name = "riscv64")]
-    Riscv64,
 }
 
 impl Arch {
@@ -37,7 +35,6 @@ impl Arch {
             Arch::Arm64 => "aarch64-linux-android",
             Arch::Arm => "armv7-linux-androideabi",
             Arch::X86_64 => "x86_64-linux-android",
-            Arch::Riscv64 => "riscv64-linux-android",
         }
     }
     fn android_abi(&self) -> &'static str {
@@ -45,13 +42,6 @@ impl Arch {
             Arch::Arm64 => "arm64-v8a",
             Arch::Arm => "armeabi-v7a",
             Arch::X86_64 => "x86_64",
-            Arch::Riscv64 => "riscv64",
-        }
-    }
-    fn api_level(&self) -> &'static str {
-        match self {
-            Arch::Riscv64 => "35",
-            _ => "29",
         }
     }
 }
@@ -162,7 +152,7 @@ fn build_full(
     let archs_to_build = if let Some(selected) = target_arch {
         vec![selected]
     } else {
-        vec![Arch::Arm64, Arch::X86_64, Arch::Riscv64]
+        vec![Arch::Arm64, Arch::X86_64]
     };
 
     for arch in archs_to_build {
@@ -322,11 +312,6 @@ export const BUILTIN_PARTITIONS = ["system", "vendor", "product", "system_ext", 
 
 fn compile_core(root: &Path, release: bool, arch: Arch) -> Result<()> {
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
-    if !matches!(arch, Arch::Riscv64) {
-        let _ = Command::new("rustup")
-            .args(["target", "add", arch.target()])
-            .status();
-    }
     let ndk_home = env::var("ANDROID_NDK_HOME").context("ANDROID_NDK_HOME not set")?;
     let host_os = std::env::consts::OS;
     let host_tag = match host_os {
@@ -339,12 +324,11 @@ fn compile_core(root: &Path, release: bool, arch: Arch) -> Result<()> {
         .join("toolchains/llvm/prebuilt")
         .join(host_tag)
         .join("bin");
-    let api = arch.api_level();
+    let api = 35;
     let cc_name = match arch {
         Arch::Arm64 => format!("aarch64-linux-android{}-clang", api),
         Arch::Arm => format!("armv7a-linux-androideabi{}-clang", api),
         Arch::X86_64 => format!("x86_64-linux-android{}-clang", api),
-        Arch::Riscv64 => format!("riscv64-linux-android{}-clang", api),
     };
     let cc_path = toolchain_bin.join(&cc_name);
     let ar_path = toolchain_bin.join("llvm-ar");
@@ -354,9 +338,6 @@ fn compile_core(root: &Path, release: bool, arch: Arch) -> Result<()> {
     let mut cmd = Command::new(&cargo);
     cmd.current_dir(root);
     cmd.arg("build").arg("--target").arg(arch.target());
-    if matches!(arch, Arch::Riscv64) {
-        cmd.arg("-Z").arg("build-std=std,panic_abort");
-    }
     if release {
         cmd.arg("--release");
     }
