@@ -1,8 +1,3 @@
-/**
- * Copyright 2026 Hybrid Mount Authors
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
 import { createSignal, createMemo, onMount, Show } from 'solid-js';
 import { store } from './lib/store';
 import TopBar from './components/TopBar.tsx';
@@ -27,7 +22,7 @@ export default function App() {
   let touchStartY = 0;
 
   const visibleTabs = createMemo(() => {
-    return ['status', 'config', 'modules', 'logs', 'granary', 'info'];
+    return ['status', 'config', 'modules', 'granary', 'info'];
   });
 
   const baseTranslateX = createMemo(() => {
