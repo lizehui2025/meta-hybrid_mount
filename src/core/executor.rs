@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     path::{Path, PathBuf},
 };
 
@@ -33,16 +33,6 @@ pub struct DiagnosticIssue {
     pub level: DiagnosticLevel,
     pub context: String,
     pub message: String,
-}
-
-fn extract_module_root(partition_path: &Path) -> Option<PathBuf> {
-    partition_path.parent().map(|p| p.to_path_buf())
-}
-
-struct OverlayResult {
-    fallback_ids: Vec<String>,
-    magic_candidates: Vec<String>,
-    success_records: Vec<(PathBuf, String)>,
 }
 
 pub fn diagnose_plan(plan: &MountPlan) -> Vec<DiagnosticIssue> {
@@ -100,136 +90,84 @@ pub fn diagnose_plan(plan: &MountPlan) -> Vec<DiagnosticIssue> {
 }
 
 pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionResult> {
-    let mut magic_queue = plan.magic_module_ids.clone();
-
-    let mut global_success_map: HashMap<PathBuf, HashSet<String>> = HashMap::new();
-
-    let mut final_overlay_ids = HashSet::new();
-
-    plan.overlay_module_ids.iter().for_each(|id| {
-        final_overlay_ids.insert(id.clone());
-    });
+    let mut final_magic_ids: HashSet<String> = plan.magic_module_ids.iter().cloned().collect();
+    let mut final_overlay_ids: HashSet<String> = HashSet::new();
 
     log::info!(">> Phase 1: OverlayFS Execution...");
 
-    let overlay_results: Vec<OverlayResult> = plan
-        .overlay_ops
-        .iter()
-        .map(|op| {
-            let lowerdir_strings: Vec<String> = op
-                .lowerdirs
-                .iter()
-                .map(|p: &PathBuf| p.display().to_string())
-                .collect();
+    for op in &plan.overlay_ops {
+        let involved_modules: Vec<String> = op
+            .lowerdirs
+            .iter()
+            .filter_map(|p| utils::extract_module_id(p))
+            .collect();
 
-            let rw_root = Path::new(defs::SYSTEM_RW_DIR);
+        let lowerdir_strings: Vec<String> = op
+            .lowerdirs
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect();
 
-            let part_rw = rw_root.join(&op.partition_name);
+        let rw_root = Path::new(defs::SYSTEM_RW_DIR);
+        let part_rw = rw_root.join(&op.partition_name);
+        let upper = part_rw.join("upperdir");
+        let work = part_rw.join("workdir");
 
-            let upper = part_rw.join("upperdir");
+        let (upper_opt, work_opt) = if upper.exists() && work.exists() {
+            (Some(upper), Some(work))
+        } else {
+            (None, None)
+        };
 
-            let work = part_rw.join("workdir");
+        log::info!(
+            "Mounting {} [OVERLAY] (Layers: {})",
+            op.target,
+            lowerdir_strings.len()
+        );
 
-            let (upper_opt, work_opt) = if upper.exists() && work.exists() {
-                (Some(upper), Some(work))
-            } else {
-                (None, None)
-            };
+        match overlayfs::overlayfs::mount_overlay(
+            &op.target,
+            &lowerdir_strings,
+            work_opt,
+            upper_opt,
+            &config.mountsource,
+        ) {
+            Ok(_) => {
+                for id in involved_modules {
+                    final_overlay_ids.insert(id);
+                }
 
-            log::info!(
-                "Mounting {} [OVERLAY] (Layers: {})",
-                op.target,
-                lowerdir_strings.len()
-            );
-
-            if let Err(e) = overlayfs::overlayfs::mount_overlay(
-                &op.target,
-                &lowerdir_strings,
-                work_opt,
-                upper_opt,
-                &config.mountsource,
-            ) {
+                #[cfg(any(target_os = "linux", target_os = "android"))]
+                if !config.disable_umount {
+                    if let Err(e) = crate::try_umount::send_unmountable(&op.target) {
+                        log::warn!("Failed to schedule unmount for {}: {}", op.target, e);
+                    }
+                }
+            }
+            Err(e) => {
                 log::warn!(
-                    "OverlayFS failed for {}: {}. Triggering fallback.",
+                    "OverlayFS failed for {}: {}. Fallback to Magic Mount.",
                     op.target,
                     e
                 );
-
-                let mut local_fallback_ids = Vec::new();
-                let mut local_magic_candidates = Vec::new();
-
-                for layer_path in &op.lowerdirs {
-                    if let Some(id) = utils::extract_module_id(layer_path) {
-                        local_fallback_ids.push(id.clone());
-                        local_magic_candidates.push(id);
-                    }
-                }
-
-                return OverlayResult {
-                    fallback_ids: local_fallback_ids,
-                    magic_candidates: local_magic_candidates,
-                    success_records: Vec::new(),
-                };
-            }
-
-            #[cfg(any(target_os = "linux", target_os = "android"))]
-            #[allow(clippy::collapsible_if)]
-            if !config.disable_umount {
-                if let Err(e) = crate::try_umount::send_unmountable(&op.target) {
-                    log::warn!("Failed to schedule unmount for {}: {}", op.target, e);
+                for id in involved_modules {
+                    final_magic_ids.insert(id);
                 }
             }
-
-            let mut successes = Vec::new();
-
-            for layer_path in &op.lowerdirs {
-                if let Some(root) = extract_module_root(layer_path) {
-                    successes.push((root, op.partition_name.clone()));
-                }
-            }
-
-            OverlayResult {
-                fallback_ids: Vec::new(),
-                magic_candidates: Vec::new(),
-                success_records: successes,
-            }
-        })
-        .collect();
-
-    for res in overlay_results {
-        for id in res.fallback_ids {
-            final_overlay_ids.remove(&id);
-        }
-
-        for id in res.magic_candidates {
-            magic_queue.push(id);
-        }
-
-        for (root, partition) in res.success_records {
-            global_success_map
-                .entry(root)
-                .or_default()
-                .insert(partition);
         }
     }
 
+    final_overlay_ids.retain(|id| !final_magic_ids.contains(id));
+
+    let mut magic_queue: Vec<String> = final_magic_ids.iter().cloned().collect();
     magic_queue.sort();
-
-    magic_queue.dedup();
-
-    let mut final_magic_ids = Vec::new();
-    let mut magic_need_ids = HashSet::new();
-
-    for id in &magic_queue {
-        magic_need_ids.insert(id.to_string());
-    }
 
     if !magic_queue.is_empty() {
         let tempdir = PathBuf::from(&config.hybrid_mnt_dir).join("magic_workspace");
         let _ = crate::try_umount::TMPFS.set(tempdir.to_string_lossy().to_string());
 
         log::info!(
-            ">> Phase 2: Magic Mount (Fallback) using {}",
+            ">> Phase 2: Magic Mount (Fallback/Native) using {}",
             tempdir.display()
         );
 
@@ -238,6 +176,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         }
 
         let module_dir = Path::new(&config.hybrid_mnt_dir);
+        let magic_need_ids: HashSet<String> = magic_queue.iter().cloned().collect();
 
         if let Err(e) = magic_mount::magic_mount(
             &tempdir,
@@ -248,10 +187,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
             !config.disable_umount,
         ) {
             log::error!("Magic Mount critical failure: {:#}", e);
-
             final_magic_ids.clear();
-        } else {
-            final_magic_ids = magic_queue.clone();
         }
     }
 
@@ -262,15 +198,11 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         log::warn!("Final try_umount commit failed: {}", e);
     }
 
-    let mut result_overlay = final_overlay_ids.into_iter().collect::<Vec<_>>();
-
-    let mut result_magic = final_magic_ids;
+    let mut result_overlay: Vec<String> = final_overlay_ids.into_iter().collect();
+    let mut result_magic: Vec<String> = final_magic_ids.into_iter().collect();
 
     result_overlay.sort();
-
     result_magic.sort();
-
-    result_magic.dedup();
 
     Ok(ExecutionResult {
         overlay_module_ids: result_overlay,
