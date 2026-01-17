@@ -217,6 +217,6 @@ pub fn update_description(
 
     let content = lines.join("\n");
     if let Err(e) = utils::atomic_write(prop_path, format!("{}\n", content)) {
-        tracing::warn!("Failed to update module description: {}", e);
+        log::warn!("Failed to update module description: {}", e);
     }
 }

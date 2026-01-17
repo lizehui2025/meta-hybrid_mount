@@ -75,7 +75,7 @@ impl OryzaEngine<Init> {
             self.config.disable_umount,
         )?;
 
-        tracing::info!(">> Storage Backend: [{}]", handle.mode.to_uppercase());
+        log::info!(">> Storage Backend: [{}]", handle.mode.to_uppercase());
 
         Ok(OryzaEngine {
             config: self.config,
@@ -88,7 +88,7 @@ impl OryzaEngine<StorageReady> {
     pub fn scan_and_sync(mut self) -> Result<OryzaEngine<ModulesReady>> {
         let modules = inventory::scan(&self.config.moduledir, &self.config)?;
 
-        tracing::info!(
+        log::info!(
             ">> Inventory Scan: Found {} enabled modules.",
             modules.len()
         );
@@ -130,7 +130,7 @@ impl OryzaEngine<ModulesReady> {
 
 impl OryzaEngine<Planned> {
     pub fn execute(self) -> Result<OryzaEngine<Executed>> {
-        tracing::info!(">> Link Start! Executing mount plan...");
+        log::info!(">> Link Start! Executing mount plan...");
 
         let result = executor::execute(&self.state.plan, &self.config)?;
 
@@ -151,18 +151,18 @@ impl OryzaEngine<Executed> {
         let mut nuke_active = false;
 
         if self.state.handle.mode == "ext4" && self.config.enable_nuke {
-            tracing::info!(">> Engaging Paw Pad Protocol (Stealth)...");
+            log::info!(">> Engaging Paw Pad Protocol (Stealth)...");
 
             match try_umount::ksu_nuke_sysfs(
                 self.state.handle.mount_point.to_string_lossy().as_ref(),
             ) {
                 Ok(_) => {
-                    tracing::info!(">> Success: Paw Pad active. Sysfs traces purged.");
+                    log::info!(">> Success: Paw Pad active. Sysfs traces purged.");
 
                     nuke_active = true;
                 }
                 Err(e) => {
-                    tracing::warn!("!! Paw Pad failure: {:#}", e);
+                    log::warn!("!! Paw Pad failure: {:#}", e);
                 }
             }
         }
@@ -195,12 +195,12 @@ impl OryzaEngine<Executed> {
         );
 
         if let Err(e) = state.save() {
-            tracing::error!("Failed to save runtime state: {:#}", e);
+            log::error!("Failed to save runtime state: {:#}", e);
         }
 
         granary::disengage_ratoon_protocol();
 
-        tracing::info!(">> System operational. Mount sequence complete.");
+        log::info!(">> System operational. Mount sequence complete.");
 
         Ok(())
     }

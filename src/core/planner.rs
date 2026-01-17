@@ -97,13 +97,13 @@ impl MountPlan {
 
     pub fn print_visuals(&self) {
         if self.overlay_ops.is_empty() && self.magic_module_paths.is_empty() {
-            tracing::info!(">> Empty plan. Standby mode.");
+            log::info!(">> Empty plan. Standby mode.");
 
             return;
         }
 
         if !self.overlay_ops.is_empty() {
-            tracing::info!("[OverlayFS Fusion Sequence]");
+            log::info!("[OverlayFS Fusion Sequence]");
 
             for (i, op) in self.overlay_ops.iter().enumerate() {
                 let is_last_op =
@@ -111,7 +111,7 @@ impl MountPlan {
 
                 let branch = if is_last_op { "╰──" } else { "├──" };
 
-                tracing::info!("{} [Target: {}] {}", branch, op.partition_name, op.target);
+                log::info!("{} [Target: {}] {}", branch, op.partition_name, op.target);
 
                 let prefix = if is_last_op { "    " } else { "│   " };
 
@@ -128,13 +128,13 @@ impl MountPlan {
                         .map(|n| n.to_string())
                         .unwrap_or_else(|| "UNKNOWN".into());
 
-                    tracing::info!("{}{} [Layer] {}", prefix, sub_branch, mod_name);
+                    log::info!("{}{} [Layer] {}", prefix, sub_branch, mod_name);
                 }
             }
         }
 
         if !self.magic_module_paths.is_empty() {
-            tracing::info!("[Magic Mount Fallback Protocol]");
+            log::info!("[Magic Mount Fallback Protocol]");
 
             for (i, path) in self.magic_module_paths.iter().enumerate() {
                 let is_last = i == self.magic_module_paths.len() - 1;
@@ -146,7 +146,7 @@ impl MountPlan {
                     .map(|n| n.to_string_lossy())
                     .unwrap_or_else(|| "UNKNOWN".into());
 
-                tracing::info!("{} [Bind] {}", branch, mod_name);
+                log::info!("{} [Bind] {}", branch, mod_name);
             }
         }
     }
@@ -222,7 +222,7 @@ pub fn generate(
                             has_any_action = true;
                         }
                         MountMode::Ignore => {
-                            tracing::debug!("Ignoring {}/{} per rule", module.id, dir_name);
+                            log::debug!("Ignoring {}/{} per rule", module.id, dir_name);
                         }
                     }
                 }
@@ -263,7 +263,7 @@ pub fn generate(
             .map(|m| m.file_type().is_symlink())
             .unwrap_or(false)
         {
-            tracing::warn!(
+            log::warn!(
                 "Skipping overlay on symlink partition: {}",
                 initial_target_path
             );

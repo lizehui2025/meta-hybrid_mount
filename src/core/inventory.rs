@@ -62,10 +62,10 @@ impl ModuleRules {
                         }
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to parse rules for module '{}': {}", module_id, e)
+                        log::warn!("Failed to parse rules for module '{}': {}", module_id, e)
                     }
                 },
-                Err(e) => tracing::warn!("Failed to read rule file for '{}': {}", module_id, e),
+                Err(e) => log::warn!("Failed to read rule file for '{}': {}", module_id, e),
             }
         }
 
@@ -85,11 +85,11 @@ impl ModuleRules {
                         }
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to parse user rules for '{}': {}", module_id, e)
+                        log::warn!("Failed to parse user rules for '{}': {}", module_id, e)
                     }
                 },
                 Err(e) => {
-                    tracing::warn!("Failed to read user rule file for '{}': {}", module_id, e)
+                    log::warn!("Failed to read user rule file for '{}': {}", module_id, e)
                 }
             }
         }

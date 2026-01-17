@@ -33,7 +33,7 @@ pub fn mount_overlayfs(
         .chain(std::iter::once(lowest))
         .collect::<Vec<_>>()
         .join(":");
-    tracing::info!(
+    log::info!(
         "mount overlayfs on {:?}, lowerdir={}, upperdir={:?}, workdir={:?}, source={}",
         dest.as_ref(),
         lowerdir_config,
@@ -70,7 +70,7 @@ pub fn mount_overlayfs(
     })();
 
     if let Err(e) = result {
-        tracing::warn!("fsopen mount failed: {:#}, fallback to mount", e);
+        log::warn!("fsopen mount failed: {:#}, fallback to mount", e);
         let mut data = format!("lowerdir={lowerdir_config}");
         if let (Some(upperdir), Some(workdir)) = (upperdir, workdir) {
             data = format!("{data},upperdir={upperdir},workdir={workdir}");
@@ -87,7 +87,7 @@ pub fn mount_overlayfs(
 }
 
 pub fn bind_mount(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<()> {
-    tracing::info!(
+    log::info!(
         "bind mount {} -> {}",
         from.as_ref().display(),
         to.as_ref().display()
@@ -159,7 +159,7 @@ fn mount_overlay_child(
         mount_point,
         mount_source,
     ) {
-        tracing::warn!("failed: {:#}, fallback to bind mount", e);
+        log::warn!("failed: {:#}, fallback to bind mount", e);
         bind_mount(stock_root, mount_point)?;
     }
     let _ = send_unmountable(mount_point);
@@ -173,7 +173,7 @@ pub fn mount_overlay(
     upperdir: Option<PathBuf>,
     mount_source: &str,
 ) -> Result<()> {
-    tracing::info!("mount overlay for {}", root);
+    log::info!("mount overlay for {}", root);
     std::env::set_current_dir(root).with_context(|| format!("failed to chdir to {root}"))?;
     let stock_root = ".";
 
@@ -209,7 +209,7 @@ pub fn mount_overlay(
             &stock_root,
             mount_source,
         ) {
-            tracing::warn!(
+            log::warn!(
                 "failed to mount overlay for child {}: {:#}, revert",
                 mount_point,
                 e

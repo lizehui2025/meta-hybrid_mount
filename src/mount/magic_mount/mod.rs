@@ -66,7 +66,7 @@ impl MagicMount {
             NodeFileType::RegularFile => self.regular_file(),
             NodeFileType::Directory => self.directory(),
             NodeFileType::Whiteout => {
-                tracing::debug!("file {} is removed", self.path.display());
+                log::debug!("file {} is removed", self.path.display());
                 Ok(())
             }
         }
@@ -76,7 +76,7 @@ impl MagicMount {
 impl MagicMount {
     fn symlink(&self) -> Result<()> {
         if let Some(module_path) = &self.node.module_path {
-            tracing::debug!(
+            log::debug!(
                 "create module symlink {} -> {}",
                 module_path.display(),
                 self.work_dir_path.display()
@@ -110,7 +110,7 @@ impl MagicMount {
 
         let module_path = &self.node.module_path.clone().unwrap();
 
-        tracing::debug!(
+        log::debug!(
             "mount module file {} -> {}",
             module_path.display(),
             self.work_dir_path.display()
@@ -129,7 +129,7 @@ impl MagicMount {
         })?;
 
         if let Err(e) = mount_remount(target, MountFlags::RDONLY | MountFlags::BIND, "") {
-            tracing::warn!("make file {} ro: {e:#?}", target.display());
+            log::warn!("make file {} ro: {e:#?}", target.display());
         }
 
         let mounted = MOUNTED_FILES.load(std::sync::atomic::Ordering::Relaxed) + 1;
@@ -159,7 +159,7 @@ impl MagicMount {
                 };
                 if need {
                     if self.node.module_path.is_none() {
-                        tracing::error!(
+                        log::error!(
                             "cannot create tmpfs on {}, ignore: {name}",
                             self.path.display()
                         );
@@ -199,7 +199,7 @@ impl MagicMount {
                 );
             }
 
-            tracing::debug!("dir {} is replaced", self.path.display());
+            log::debug!("dir {} is replaced", self.path.display());
         }
 
         for (name, node) in &self.node.children {
@@ -224,12 +224,12 @@ impl MagicMount {
                     return Err(e);
                 }
 
-                tracing::error!("mount child {}/{name} failed: {e:#?}", self.path.display());
+                log::error!("mount child {}/{name} failed: {e:#?}", self.path.display());
             }
         }
 
         if tmpfs {
-            tracing::debug!(
+            log::debug!(
                 "moving tmpfs {} -> {}",
                 self.work_dir_path.display(),
                 self.path.display()
@@ -240,7 +240,7 @@ impl MagicMount {
                 MountFlags::RDONLY | MountFlags::BIND,
                 "",
             ) {
-                tracing::warn!("make dir {} ro: {e:#?}", self.path.display());
+                log::warn!("make dir {} ro: {e:#?}", self.path.display());
             }
             mount_move(&self.work_dir_path, &self.path).with_context(|| {
                 format!(
@@ -250,7 +250,7 @@ impl MagicMount {
                 )
             })?;
             if let Err(e) = mount_change(&self.path, MountPropagationFlags::PRIVATE) {
-                tracing::warn!("make dir {} private: {e:#?}", self.path.display());
+                log::warn!("make dir {} private: {e:#?}", self.path.display());
             }
 
             #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -294,7 +294,7 @@ impl MagicMount {
                 if has_tmpfs {
                     return Err(e);
                 }
-                tracing::error!("mount child {}/{name} failed: {e:#?}", self.path.display());
+                log::error!("mount child {}/{name} failed: {e:#?}", self.path.display());
             }
         }
 
@@ -315,7 +315,7 @@ where
     P: AsRef<Path>,
 {
     if let Some(root) = collect_module_files(module_dir, extra_partitions, need_id)? {
-        tracing::debug!("collected: {root:?}");
+        log::debug!("collected: {root:?}");
         let tmp_root = tmp_path.as_ref();
         let tmp_dir = tmp_root.join("workdir");
         ensure_dir_exists(&tmp_dir)?;
@@ -339,7 +339,7 @@ where
         .do_mount();
 
         if let Err(e) = unmount(&tmp_dir, UnmountFlags::DETACH) {
-            tracing::error!("failed to unmount tmp {e}");
+            log::error!("failed to unmount tmp {e}");
         }
         #[cfg(any(target_os = "android", target_os = "linux"))]
         try_umount::commit()?;
@@ -347,10 +347,10 @@ where
 
         let mounted_symbols = MOUNTED_SYMBOLS_FILES.load(std::sync::atomic::Ordering::Relaxed);
         let mounted_files = MOUNTED_FILES.load(std::sync::atomic::Ordering::Relaxed);
-        tracing::info!("mounted files: {mounted_files}, mounted symlinks: {mounted_symbols}");
+        log::info!("mounted files: {mounted_files}, mounted symlinks: {mounted_symbols}");
         ret
     } else {
-        tracing::info!("no modules to mount, skipping!");
+        log::info!("no modules to mount, skipping!");
         Ok(())
     }
 }

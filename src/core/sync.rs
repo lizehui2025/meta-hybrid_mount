@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 use crate::{core::inventory::Module, defs, utils};
 
 pub fn perform_sync(modules: &[Module], target_base: &Path) -> Result<()> {
-    tracing::info!("Starting smart module sync to {}", target_base.display());
+    log::info!("Starting smart module sync to {}", target_base.display());
 
     prune_orphaned_modules(modules, target_base)?;
 
@@ -24,7 +24,7 @@ pub fn perform_sync(modules: &[Module], target_base: &Path) -> Result<()> {
         });
 
         if has_content && should_sync(&module.source_path, &dst) {
-            tracing::info!("Syncing module: {} (Updated/New)", module.id);
+            log::info!("Syncing module: {} (Updated/New)", module.id);
 
             let tmp_dst = target_base.join(format!(".tmp_{}", module.id));
 
@@ -33,17 +33,17 @@ pub fn perform_sync(modules: &[Module], target_base: &Path) -> Result<()> {
             }
 
             if let Err(e) = utils::sync_dir(&module.source_path, &tmp_dst, true) {
-                tracing::error!("Failed to sync module {}: {}", module.id, e);
+                log::error!("Failed to sync module {}: {}", module.id, e);
                 let _ = fs::remove_dir_all(&tmp_dst);
                 return;
             }
 
             if let Err(e) = utils::prune_empty_dirs(&tmp_dst) {
-                tracing::warn!("Failed to prune empty dirs for {}: {}", module.id, e);
+                log::warn!("Failed to prune empty dirs for {}: {}", module.id, e);
             }
 
             if let Err(e) = apply_overlay_opaque_flags(&tmp_dst) {
-                tracing::warn!(
+                log::warn!(
                     "Failed to apply overlay opaque xattrs for {}: {}",
                     module.id,
                     e
@@ -53,7 +53,7 @@ pub fn perform_sync(modules: &[Module], target_base: &Path) -> Result<()> {
             if dst.exists()
                 && let Err(e) = fs::remove_dir_all(&dst)
             {
-                tracing::warn!(
+                log::warn!(
                     "Failed to clean existing target dir for {}: {}",
                     module.id,
                     e
@@ -61,11 +61,11 @@ pub fn perform_sync(modules: &[Module], target_base: &Path) -> Result<()> {
             }
 
             if let Err(e) = fs::rename(&tmp_dst, &dst) {
-                tracing::error!("Failed to commit atomic sync for {}: {}", module.id, e);
+                log::error!("Failed to commit atomic sync for {}: {}", module.id, e);
                 let _ = fs::remove_dir_all(&tmp_dst);
             }
         } else {
-            tracing::debug!("Skipping module: {}", module.id);
+            log::debug!("Skipping module: {}", module.id);
         }
     });
 
@@ -78,7 +78,7 @@ fn apply_overlay_opaque_flags(root: &Path) -> Result<()> {
         if entry.file_type().is_file() && entry.file_name() == defs::REPLACE_DIR_FILE_NAME {
             if let Some(parent) = entry.path().parent() {
                 utils::set_overlay_opaque(parent)?;
-                tracing::debug!("Set overlay opaque xattr on: {}", parent.display());
+                log::debug!("Set overlay opaque xattr on: {}", parent.display());
             }
         }
     }
@@ -102,14 +102,14 @@ fn prune_orphaned_modules(modules: &[Module], target_base: &Path) -> Result<()> 
         let name = name_os.to_string_lossy();
 
         if name != "lost+found" && name != "meta-hybrid" && !active_ids.contains(name.as_ref()) {
-            tracing::info!("Pruning orphaned module storage: {}", name);
+            log::info!("Pruning orphaned module storage: {}", name);
 
             if path.is_dir() {
                 if let Err(e) = fs::remove_dir_all(&path) {
-                    tracing::warn!("Failed to remove orphan dir {}: {}", name, e);
+                    log::warn!("Failed to remove orphan dir {}: {}", name, e);
                 }
             } else if let Err(e) = fs::remove_file(&path) {
-                tracing::warn!("Failed to remove orphan file {}: {}", name, e);
+                log::warn!("Failed to remove orphan file {}: {}", name, e);
             }
         }
     });

@@ -10,7 +10,7 @@ mod try_umount;
 mod utils;
 
 use core::{OryzaEngine, executor, granary, inventory, planner};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -96,7 +96,7 @@ fn main() -> Result<()> {
     if !config.dry_run {
         match granary::engage_ratoon_protocol() {
             Ok(granary::RatoonStatus::Restored) => {
-                tracing::warn!(">> Config restored by Ratoon Protocol. Reloading...");
+                log::warn!(">> Config restored by Ratoon Protocol. Reloading...");
                 match load_config(&cli) {
                     Ok(new_config) => {
                         config = new_config;
@@ -107,16 +107,16 @@ fn main() -> Result<()> {
                             cli.partitions.clone(),
                             cli.dry_run,
                         );
-                        tracing::info!(">> Config reloaded successfully.");
+                        log::info!(">> Config reloaded successfully.");
                     }
                     Err(e) => {
-                        tracing::error!(">> Failed to reload config after restore: {}", e);
+                        log::error!(">> Failed to reload config after restore: {}", e);
                     }
                 }
             }
             Ok(granary::RatoonStatus::Standby) => {}
             Err(e) => {
-                tracing::error!("Failed to engage Ratoon Protocol: {}", e);
+                log::error!("Failed to engage Ratoon Protocol: {}", e);
             }
         }
     }
@@ -138,39 +138,32 @@ fn main() -> Result<()> {
         }
     }
 
-    let log_path = if config.dry_run {
-        None
-    } else {
-        Some(Path::new(defs::DAEMON_LOG_FILE))
-    };
-
-    let _log_guard = utils::init_logging(config.verbose, config.dry_run, log_path)
-        .context("Failed to initialize logging")?;
+    utils::init_logging(config.verbose).context("Failed to initialize logging")?;
 
     if config.dry_run {
-        tracing::info!(":: DRY-RUN / DIAGNOSTIC MODE ::");
+        log::info!(":: DRY-RUN / DIAGNOSTIC MODE ::");
 
         let module_list =
             inventory::scan(&config.moduledir, &config).context("Inventory scan failed")?;
 
-        tracing::info!(">> Inventory: Found {} modules", module_list.len());
+        log::info!(">> Inventory: Found {} modules", module_list.len());
 
         let plan = planner::generate(&config, &module_list, &config.moduledir)
             .context("Plan generation failed")?;
 
         plan.print_visuals();
 
-        tracing::info!(">> Analyzing File Conflicts...");
+        log::info!(">> Analyzing File Conflicts...");
 
         let report = plan.analyze_conflicts();
 
         if report.details.is_empty() {
-            tracing::info!("   No file conflicts detected. Clean.");
+            log::info!("   No file conflicts detected. Clean.");
         } else {
-            tracing::warn!("!! DETECTED {} FILE CONFLICTS !!", report.details.len());
+            log::warn!("!! DETECTED {} FILE CONFLICTS !!", report.details.len());
 
             for c in report.details {
-                tracing::warn!(
+                log::warn!(
                     "   [{}] {} <== {:?}",
                     "CONFLICT",
                     format!("/{}/{}", c.partition, c.relative_path),
@@ -179,7 +172,7 @@ fn main() -> Result<()> {
             }
         }
 
-        tracing::info!(">> Running System Diagnostics...");
+        log::info!(">> Running System Diagnostics...");
 
         let issues = executor::diagnose_plan(&plan);
 
@@ -188,30 +181,30 @@ fn main() -> Result<()> {
         for issue in issues {
             match issue.level {
                 core::executor::DiagnosticLevel::Critical => {
-                    tracing::error!("[CRITICAL][{}] {}", issue.context, issue.message);
+                    log::error!("[CRITICAL][{}] {}", issue.context, issue.message);
 
                     critical_count += 1;
                 }
                 core::executor::DiagnosticLevel::Warning => {
-                    tracing::warn!("[WARN][{}] {}", issue.context, issue.message);
+                    log::warn!("[WARN][{}] {}", issue.context, issue.message);
                 }
                 core::executor::DiagnosticLevel::Info => {
-                    tracing::info!("[INFO][{}] {}", issue.context, issue.message);
+                    log::info!("[INFO][{}] {}", issue.context, issue.message);
                 }
             }
         }
 
         if critical_count > 0 {
-            tracing::error!(
+            log::error!(
                 ">> ❌ DIAGNOSTICS FAILED: {} critical issues found.",
                 critical_count
             );
 
-            tracing::error!(">> Mounting now would likely result in a bootloop.");
+            log::error!(">> Mounting now would likely result in a bootloop.");
 
             std::process::exit(1);
         } else {
-            tracing::info!(">> ✅ Diagnostics passed. System looks healthy.");
+            log::info!(">> ✅ Diagnostics passed. System looks healthy.");
         }
 
         return Ok(());
@@ -220,21 +213,21 @@ fn main() -> Result<()> {
     let camouflage_name = utils::random_kworker_name();
 
     if let Err(e) = utils::camouflage_process(&camouflage_name) {
-        tracing::warn!("Failed to camouflage process: {:#}", e);
+        log::warn!("Failed to camouflage process: {:#}", e);
     }
 
-    tracing::info!(">> Initializing Hybrid Mount Daemon...");
+    log::info!(">> Initializing Hybrid Mount Daemon...");
 
-    tracing::debug!("Process camouflaged as: {}", camouflage_name);
+    log::debug!("Process camouflaged as: {}", camouflage_name);
 
     if let Ok(version) = std::fs::read_to_string("/proc/sys/kernel/osrelease") {
-        tracing::debug!("Kernel Version: {}", version.trim());
+        log::debug!("Kernel Version: {}", version.trim());
     }
 
     utils::check_ksu();
 
     if config.disable_umount {
-        tracing::warn!("!! Umount is DISABLED via config.");
+        log::warn!("!! Umount is DISABLED via config.");
     }
 
     utils::ensure_dir_exists(defs::RUN_DIR)
@@ -244,7 +237,7 @@ fn main() -> Result<()> {
     let img_path = PathBuf::from(defs::MODULES_IMG_FILE);
 
     if let Err(e) = granary::create_silo(&config, "Boot Backup", "Automatic Pre-Mount") {
-        tracing::warn!("Granary: Failed to create boot snapshot: {}", e);
+        log::warn!("Granary: Failed to create boot snapshot: {}", e);
     }
 
     OryzaEngine::new(config)

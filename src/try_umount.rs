@@ -26,7 +26,7 @@ where
     let mut history = HISTORY.lock().unwrap();
 
     if history.contains(&path_str) {
-        tracing::debug!("Ignored duplicate unmount request: {}", path_str);
+        log::debug!("Ignored duplicate unmount request: {}", path_str);
         return Ok(());
     }
 
@@ -46,12 +46,12 @@ pub fn commit() -> Result<()> {
     // Attempt 1: Normal unmount (0)
     list.flags(0);
     if let Err(e0) = list.umount() {
-        tracing::debug!("try_umount(0) failed: {:#}, retrying with flags(2)", e0);
+        log::debug!("try_umount(0) failed: {:#}, retrying with flags(2)", e0);
 
         // Attempt 2: Detach/Lazy unmount (2)
         list.flags(2);
         if let Err(e2) = list.umount() {
-            tracing::warn!("try_umount(2) failed: {:#}", e2);
+            log::warn!("try_umount(2) failed: {:#}", e2);
         }
     }
 

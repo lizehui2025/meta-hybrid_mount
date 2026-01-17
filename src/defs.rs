@@ -5,7 +5,6 @@ pub const DEFAULT_HYBRID_MNT_DIR: &str = "/debug_ramdisk";
 pub const MODULES_IMG_FILE: &str = "/data/adb/meta-hybrid/modules.img";
 pub const RUN_DIR: &str = "/data/adb/meta-hybrid/run/";
 pub const STATE_FILE: &str = "/data/adb/meta-hybrid/run/daemon_state.json";
-pub const DAEMON_LOG_FILE: &str = "/data/adb/meta-hybrid/daemon.log";
 pub const DISABLE_FILE_NAME: &str = "disable";
 pub const REMOVE_FILE_NAME: &str = "remove";
 pub const SKIP_MOUNT_FILE_NAME: &str = "skip_mount";

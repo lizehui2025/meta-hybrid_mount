@@ -48,7 +48,7 @@ pub fn mount_systemlessly(
             let disabled = real_module_path.join(defs::DISABLE_FILE_NAME).exists();
 
             if disabled {
-                tracing::info!("module: {} is disabled, ignore!", module.display());
+                log::info!("module: {} is disabled, ignore!", module.display());
                 continue;
             }
             if !module_id.contains(&module_name.to_string_lossy().to_string()) {
@@ -58,7 +58,7 @@ pub fn mount_systemlessly(
 
         let skip_mount = module.join(defs::SKIP_MOUNT_FILE_NAME).exists();
         if skip_mount {
-            tracing::info!("module: {} skip_mount exist, skip!", module.display());
+            log::info!("module: {} skip_mount exist, skip!", module.display());
             continue;
         }
 
@@ -79,12 +79,12 @@ pub fn mount_systemlessly(
     }
 
     if let Err(e) = mount_partition("system", &system_lowerdir, mount_source) {
-        tracing::warn!("mount system failed: {:#}", e);
+        log::warn!("mount system failed: {:#}", e);
     }
 
     for (k, v) in partition_lowerdir {
         if let Err(e) = mount_partition(k.clone(), &v, mount_source) {
-            tracing::warn!("mount {k} failed: {:#}", e);
+            log::warn!("mount {k} failed: {:#}", e);
         }
     }
 
@@ -98,14 +98,14 @@ where
 {
     let partition_name = partition_name.as_ref();
     if lowerdir.is_empty() {
-        tracing::warn!("partition: {partition_name} lowerdir is empty");
+        log::warn!("partition: {partition_name} lowerdir is empty");
         return Ok(());
     }
 
     let partition = format!("/{partition_name}");
 
     if Path::new(&partition).read_link().is_ok() {
-        tracing::warn!("partition: {partition} is a symlink");
+        log::warn!("partition: {partition} is a symlink");
         return Ok(());
     }
 

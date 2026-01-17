@@ -3,7 +3,6 @@
 
 use std::{
     ffi::CString,
-    fmt as std_fmt,
     fs::{self, File, create_dir_all, remove_dir_all, remove_file, write},
     io::Write,
     os::unix::{
@@ -25,15 +24,6 @@ use rustix::{
     fs::ioctl_ficlone,
     mount::{MountFlags, mount},
 };
-use tracing::{Event, Subscriber};
-use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{
-    EnvFilter,
-    fmt::{self, FmtContext, FormatEvent, FormatFields},
-    layer::SubscriberExt,
-    registry::LookupSpan,
-    util::SubscriberInitExt,
-};
 use walkdir::WalkDir;
 
 const SELINUX_XATTR: &str = "security.selinux";
@@ -49,29 +39,9 @@ const XATTR_TEST_FILE: &str = ".xattr_test";
 
 static MODULE_ID_REGEX: OnceLock<Regex> = OnceLock::new();
 
-struct SimpleFormatter;
-
-impl<S, N> FormatEvent<S, N> for SimpleFormatter
-where
-    S: Subscriber + for<'a> LookupSpan<'a>,
-    N: for<'a> FormatFields<'a> + 'static,
-{
-    fn format_event(
-        &self,
-        ctx: &FmtContext<'_, S, N>,
-        mut writer: fmt::format::Writer<'_>,
-        event: &Event<'_>,
-    ) -> std_fmt::Result {
-        let level = *event.metadata().level();
-        write!(writer, "[{}] ", level)?;
-        ctx.field_format().format_fields(writer.by_ref(), event)?;
-        writeln!(writer)
-    }
-}
-
 pub fn check_ksu() {
     let status = ksu::version().is_some_and(|v| {
-        tracing::info!("KernelSU Version: {v}");
+        log::info!("KernelSU Version: {v}");
         true
     });
     KSU.store(status, std::sync::atomic::Ordering::Relaxed);
@@ -84,100 +54,39 @@ pub fn detect_mount_source() -> String {
     "APatch".to_string()
 }
 
-pub fn init_logging(
-    verbose: bool,
-    dry_run: bool,
-    log_path: Option<&Path>,
-) -> Result<Option<WorkerGuard>> {
-    let filter = if verbose {
-        EnvFilter::new("debug")
+pub fn init_logging(verbose: bool) -> Result<()> {
+    let level = if verbose {
+        log::LevelFilter::Debug
     } else {
-        EnvFilter::new("info")
+        log::LevelFilter::Info
     };
+    #[cfg(target_os = "android")]
+    {
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_max_level(level)
+                .with_tag("mhm"),
+        );
+    }
 
-    let registry = tracing_subscriber::registry().with(filter);
+    #[cfg(not(target_os = "android"))]
+    {
+        use std::io::Write;
 
-    let mut guard = None;
+        let mut builder = env_logger::Builder::new();
 
-    if dry_run {
-        let fmt_layer = fmt::layer()
-            .with_ansi(true)
-            .with_writer(std::io::stdout)
-            .with_target(false);
-        registry.with(fmt_layer).init();
-    } else {
-        let file_layer = if let Some(path) = log_path {
-            if let Some(parent) = path.parent() {
-                create_dir_all(parent)?;
-            }
-            let file_name = path
-                .file_name()
-                .ok_or_else(|| anyhow::anyhow!("Invalid log filename"))?;
-            let directory = path
-                .parent()
-                .ok_or_else(|| anyhow::anyhow!("Invalid log directory"))?;
-
-            let file_appender = tracing_appender::rolling::never(directory, file_name);
-            let (non_blocking, g) = tracing_appender::non_blocking(file_appender);
-            guard = Some(g);
-
-            Some(
-                fmt::layer()
-                    .with_ansi(false)
-                    .with_writer(non_blocking)
-                    .event_format(SimpleFormatter),
+        builder.format(|buf, record| {
+            writeln!(
+                buf,
+                "[{}] [{}] {}",
+                record.level(),
+                record.target(),
+                record.args()
             )
-        } else {
-            None
-        };
-
-        let registry = registry.with(file_layer);
-
-        #[cfg(target_os = "android")]
-        {
-            let android_layer = tracing_android::layer("HybridMount").ok();
-            registry.with(android_layer).init();
-        }
-
-        #[cfg(not(target_os = "android"))]
-        {
-            registry.init();
-        }
+        });
+        builder.filter_level(level).init();
     }
-
-    tracing_log::LogTracer::init().ok();
-
-    if let Some(path) = log_path {
-        let log_path_buf = path.to_path_buf();
-        std::panic::set_hook(Box::new(move |info| {
-            let msg = match info.payload().downcast_ref::<&str>() {
-                Some(s) => *s,
-                None => match info.payload().downcast_ref::<String>() {
-                    Some(s) => &s[..],
-                    None => "Box<Any>",
-                },
-            };
-
-            let location = info
-                .location()
-                .map(|l| format!("{}:{}", l.file(), l.line()))
-                .unwrap_or_default();
-
-            let error_msg = format!("\n[ERROR] PANIC: Thread crashed at {}: {}\n", location, msg);
-
-            if let Ok(mut file) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&log_path_buf)
-            {
-                let _ = writeln!(file, "{}", error_msg);
-            }
-
-            eprintln!("{}", error_msg);
-        }));
-    }
-
-    Ok(guard)
+    Ok(())
 }
 
 pub fn atomic_write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, content: C) -> Result<()> {
@@ -281,7 +190,7 @@ pub fn lsetfilecon<P: AsRef<Path>>(path: P, con: &str) -> Result<()> {
             XattrFlags::empty(),
         ) {
             let io_err = std::io::Error::from(e);
-            tracing::debug!(
+            log::debug!(
                 "lsetfilecon: {} -> {} failed: {}",
                 path.as_ref().display(),
                 con,
@@ -365,7 +274,7 @@ pub fn random_kworker_name() -> String {
 pub fn is_xattr_supported(path: &Path) -> bool {
     let test_file = path.join(XATTR_TEST_FILE);
     if let Err(e) = write(&test_file, b"test") {
-        tracing::debug!("XATTR Check: Failed to create test file: {}", e);
+        log::debug!("XATTR Check: Failed to create test file: {}", e);
         return false;
     }
     let result = lsetfilecon(&test_file, "u:object_r:system_file:s0");
@@ -377,7 +286,7 @@ pub fn is_xattr_supported(path: &Path) -> bool {
 pub fn is_overlay_xattr_supported(path: &Path) -> bool {
     let test_file = path.join(".overlay_xattr_test");
     if let Err(e) = write(&test_file, b"test") {
-        tracing::debug!("XATTR Check: Failed to create test file: {}", e);
+        log::debug!("XATTR Check: Failed to create test file: {}", e);
         return false;
     }
 
@@ -402,7 +311,7 @@ pub fn is_overlay_xattr_supported(path: &Path) -> bool {
         );
         if ret != 0 {
             let err = std::io::Error::last_os_error();
-            tracing::debug!("XATTR Check: trusted.* xattr not supported: {}", err);
+            log::debug!("XATTR Check: trusted.* xattr not supported: {}", err);
             false
         } else {
             let mut buf = [0u8; 16];
@@ -418,12 +327,12 @@ pub fn is_overlay_xattr_supported(path: &Path) -> bool {
                 if data == c_val.as_bytes() {
                     true
                 } else {
-                    tracing::warn!("XATTR Check: verification failed (content mismatch)");
+                    log::warn!("XATTR Check: verification failed (content mismatch)");
                     false
                 }
             } else {
                 let err = std::io::Error::last_os_error();
-                tracing::warn!("XATTR Check: set success but get failed: {}", err);
+                log::warn!("XATTR Check: set success but get failed: {}", err);
                 false
             }
         }
@@ -471,7 +380,7 @@ pub fn mount_tmpfs(target: &Path, source: &str) -> Result<()> {
 }
 
 pub fn repair_image(image_path: &Path) -> Result<()> {
-    tracing::info!("Running e2fsck on {}", image_path.display());
+    log::info!("Running e2fsck on {}", image_path.display());
     let status = Command::new("e2fsck")
         .args(["-y", "-f"])
         .arg(image_path)
@@ -616,7 +525,7 @@ pub fn sync_dir(src: &Path, dst: &Path, repair_context: bool) -> Result<()> {
 #[allow(dead_code)]
 pub fn cleanup_temp_dir(temp_dir: &Path) {
     if let Err(e) = remove_dir_all(temp_dir) {
-        tracing::warn!(
+        log::warn!(
             "Failed to clean up temp dir {}: {:#}",
             temp_dir.display(),
             e
@@ -647,7 +556,7 @@ pub fn create_erofs_image(src_dir: &Path, image_path: &Path) -> Result<()> {
         std::ffi::OsStr::new("mkfs.erofs")
     };
 
-    tracing::info!("Packing EROFS image: {}", image_path.display());
+    log::info!("Packing EROFS image: {}", image_path.display());
 
     let output = Command::new(cmd_name)
         .arg("-z")
@@ -665,7 +574,7 @@ pub fn create_erofs_image(src_dir: &Path, image_path: &Path) -> Result<()> {
         let s = String::from_utf8_lossy(bytes);
         for line in s.lines() {
             if !line.trim().is_empty() {
-                tracing::debug!("{}", line);
+                log::debug!("{}", line);
             }
         }
     };
@@ -677,7 +586,7 @@ pub fn create_erofs_image(src_dir: &Path, image_path: &Path) -> Result<()> {
         bail!("Failed to create EROFS image");
     }
 
-    tracing::info!("Build Completed.");
+    log::info!("Build Completed.");
     let _ = fs::set_permissions(image_path, fs::Permissions::from_mode(0o644));
     lsetfilecon(image_path, "u:object_r:ksu_file:s0")?;
     Ok(())
@@ -720,9 +629,9 @@ pub fn prune_empty_dirs<P: AsRef<Path>>(root: P) -> Result<()> {
         if entry.file_type().is_dir() {
             let path = entry.path();
             if let Err(e) = fs::remove_dir(path) {
-                tracing::debug!("Keeping dir (not empty): {} [{}]", path.display(), e);
+                log::debug!("Keeping dir (not empty): {} [{}]", path.display(), e);
             } else {
-                tracing::debug!("Pruned empty dir: {}", path.display());
+                log::debug!("Pruned empty dir: {}", path.display());
             }
         }
     }

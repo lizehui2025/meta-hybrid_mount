@@ -64,7 +64,7 @@ impl AutoMountExt4 {
 #[cfg(any(target_os = "linux", target_os = "android"))]
 impl Drop for AutoMountExt4 {
     fn drop(&mut self) {
-        tracing::info!(
+        log::info!(
             "AutoMountExt4 drop: {}, auto_umount: {}",
             self.target,
             self.auto_umount

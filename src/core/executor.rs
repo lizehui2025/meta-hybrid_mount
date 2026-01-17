@@ -40,7 +40,6 @@ fn extract_module_root(partition_path: &Path) -> Option<PathBuf> {
 }
 
 struct OverlayResult {
-    magic_roots: Vec<PathBuf>,
     fallback_ids: Vec<String>,
     success_records: Vec<(PathBuf, String)>,
 }
@@ -108,7 +107,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         final_overlay_ids.insert(id.clone());
     });
 
-    tracing::info!(">> Phase 1: OverlayFS Execution...");
+    log::info!(">> Phase 1: OverlayFS Execution...");
 
     let overlay_results: Vec<OverlayResult> = plan
         .overlay_ops
@@ -134,7 +133,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
                 (None, None)
             };
 
-            tracing::info!(
+            log::info!(
                 "Mounting {} [OVERLAY] (Layers: {})",
                 op.target,
                 lowerdir_strings.len()
@@ -147,7 +146,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
                 upper_opt,
                 &config.mountsource,
             ) {
-                tracing::warn!(
+                log::warn!(
                     "OverlayFS failed for {}: {}. Triggering fallback.",
                     op.target,
                     e
@@ -168,7 +167,6 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
                 }
 
                 return OverlayResult {
-                    magic_roots: local_magic,
                     fallback_ids: local_fallback_ids,
                     success_records: Vec::new(),
                 };
@@ -178,7 +176,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
             #[allow(clippy::collapsible_if)]
             if !config.disable_umount {
                 if let Err(e) = crate::try_umount::send_unmountable(&op.target) {
-                    tracing::warn!("Failed to schedule unmount for {}: {}", op.target, e);
+                    log::warn!("Failed to schedule unmount for {}: {}", op.target, e);
                 }
             }
 
@@ -191,7 +189,6 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
             }
 
             OverlayResult {
-                magic_roots: Vec::new(),
                 fallback_ids: Vec::new(),
                 success_records: successes,
             }
@@ -229,7 +226,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         let tempdir = PathBuf::from(&config.hybrid_mnt_dir).join("magic_workspace");
         let _ = crate::try_umount::TMPFS.set(tempdir.to_string_lossy().to_string());
 
-        tracing::info!(
+        log::info!(
             ">> Phase 2: Magic Mount (Fallback) using {}",
             tempdir.display()
         );
@@ -248,7 +245,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
             ids,
             !config.disable_umount,
         ) {
-            tracing::error!("Magic Mount critical failure: {:#}", e);
+            log::error!("Magic Mount critical failure: {:#}", e);
 
             final_magic_ids.clear();
         }
@@ -258,7 +255,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
     if !config.disable_umount
         && let Err(e) = crate::try_umount::commit()
     {
-        tracing::warn!("Final try_umount commit failed: {}", e);
+        log::warn!("Final try_umount commit failed: {}", e);
     }
 
     let mut result_overlay = final_overlay_ids.into_iter().collect::<Vec<_>>();
