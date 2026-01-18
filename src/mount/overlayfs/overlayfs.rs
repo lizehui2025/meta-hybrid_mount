@@ -4,7 +4,7 @@
 use std::{
     collections::HashMap,
     ffi::CString,
-    os::fd::{AsFd, AsRawFd},
+    os::fd::AsFd,
     path::{Path, PathBuf},
 };
 
@@ -130,17 +130,20 @@ fn mount_overlay_child(
     stock_root: &String,
     mount_source: &str,
 ) -> Result<()> {
-    // 检查模块中是否有对应的文件/目录需要覆盖
-    // 注意：stock_root 可能是 /proc/self/fd/N，用于指代原始目录
+    // Check if any module provides modifications for this path
     if !module_roots
         .iter()
         .any(|lower| Path::new(&format!("{lower}{relative}")).exists())
     {
+        // If no modifications, just bind mount the stock root back to the mount point.
+        // This ensures that even if /system overlay masked the original directory/symlink,
+        // we explicitly restore the original content here.
         return bind_mount(stock_root, mount_point);
     }
-    
-    // 如果 stock_root 不是目录（且不是指向目录的 FD 路径），则直接返回
+
     if !Path::new(&stock_root).is_dir() {
+        // If stock_root is not a directory, we can't use it as a lowerdir base for overlayfs normally,
+        // unless it's a file-overlay which is rare here.
         return Ok(());
     }
 
@@ -151,17 +154,15 @@ fn mount_overlay_child(
         if path.is_dir() {
             lower_dirs.push(lower_dir);
         } else if path.exists() {
-            // 如果模块中存在同名文件但不是目录，这可能是一个文件覆盖场景，
-            // 但目前的逻辑如果遇到这种情况似乎选择不挂载 overlay，
-            // 这是一个潜在的逻辑分支，保持原样。
             return Ok(());
         }
     }
-    
     if lower_dirs.is_empty() {
         return Ok(());
     }
 
+    // stock_root here is the "lowest" directory.
+    // By passing the resolved absolute path (e.g. /vendor), we bypass the /system overlay.
     if let Err(e) = mount_overlayfs(
         &lower_dirs,
         stock_root,
@@ -192,7 +193,7 @@ pub fn mount_overlay(
         .mountinfo()
         .with_context(|| "get mountinfo")?;
     
-    // 收集 root 下的所有子挂载点
+    // Collect all child mount points under 'root'
     let mut mount_seq = mounts
         .0
         .iter()
@@ -204,40 +205,54 @@ pub fn mount_overlay(
     mount_seq.sort();
     mount_seq.dedup();
 
-    // 【关键修复】
-    // 在主 Overlay 挂载覆盖当前目录之前，预先打开所有子挂载点。
-    // 这确保我们持有到底层原始目录的文件描述符 (FD)。
-    // 即使稍后 /system 被 OverlayFS 覆盖，这些 FD 依然指向原始的 inode。
-    let mut submount_fds = HashMap::new();
+    // [Fix Strategy] Pre-resolve paths to handle Self-Masking (e.g. /system/vendor -> /vendor)
+    // Before we mount the overlay on 'root' (which might hide symlinks), we detect them
+    // and resolve them to their absolute physical paths.
+    let mut resolved_lower_paths = HashMap::new();
     for mount_point in &mount_seq {
-        match std::fs::File::open(mount_point) {
-            Ok(f) => {
-                submount_fds.insert(mount_point.clone(), f);
-            },
-            Err(e) => {
-                log::warn!("Failed to pre-open submount {}: {}", mount_point.display(), e);
+        let path = Path::new(mount_point);
+        // Try to read link to see if it's a symlink (like /system/vendor -> /vendor)
+        if let Ok(target) = std::fs::read_link(path) {
+            let mut target_path = target;
+            // If relative, resolve it against the parent directory
+            if target_path.is_relative() {
+                if let Some(parent) = path.parent() {
+                    target_path = parent.join(target_path);
+                }
             }
+            // Use canonicalize to get the clean absolute path, ensuring we bypass any future masking.
+            // If canonicalize fails (e.g. broken link), we fall back to the raw target string.
+            let resolved = std::fs::canonicalize(&target_path)
+                .unwrap_or(target_path)
+                .to_string_lossy()
+                .to_string();
+            
+            resolved_lower_paths.insert(mount_point.clone(), resolved);
         }
     }
 
-    // 执行主目录的 overlay 挂载 (这会覆盖 root 目录)
+    // Mount the main overlay on root (e.g. /system)
     mount_overlayfs(module_roots, root, upperdir, workdir, root, mount_source)
         .with_context(|| "mount overlayfs for root failed")?;
         
-    // 处理子挂载点
+    // Handle children (e.g. /system/vendor)
     for mount_point in mount_seq.iter() {
         let mount_point_str = mount_point.to_string_lossy().to_string();
         let relative = mount_point_str.replacen(root, "", 1);
         
-        // 优先使用 /proc/self/fd/N 路径，它可以绕过当前的挂载命名空间视图，直接访问底层文件。
-        // 如果预打开失败，则回退到原始路径逻辑（可能导致软链接解析错误）。
-        let stock_root_path = if let Some(fd) = submount_fds.get(mount_point) {
-             format!("/proc/self/fd/{}", fd.as_raw_fd())
+        // Determine the "lowest" directory for the child overlay.
+        // 1. If we found it was a symlink earlier, use the pre-resolved absolute path (e.g. "/vendor").
+        //    This guarantees we are not looking at the masked path inside the new /system overlay.
+        // 2. Otherwise, fall back to the relative path logic (old behavior), 
+        //    which is usually fine for standard sub-directories.
+        let stock_root_path = if let Some(resolved) = resolved_lower_paths.get(mount_point) {
+             resolved.clone()
         } else {
              format!("{stock_root}{relative}")
         };
 
-        // 检查底层路径是否存在 (对于 /proc/self/fd/N 只要 fd 有效即存在)
+        // Check existence. Note: If stock_root_path is absolute (like /vendor), checking it works fine
+        // even if CWD is /system, provided /vendor is accessible globally.
         if !Path::new(&stock_root_path).exists() {
             continue;
         }
