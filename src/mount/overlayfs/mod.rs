@@ -7,7 +7,7 @@ pub mod utils;
 
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use anyhow::{Result, bail};
@@ -28,6 +28,7 @@ pub fn mount_systemlessly(
 
     let mut system_lowerdir: Vec<String> = Vec::new();
 
+    // 定义需要特别处理的分区，这些通常在 /system 下是软链接
     let partition = vec!["vendor", "product", "system_ext", "odm", "oem"];
     let mut partition_lowerdir: HashMap<String, Vec<String>> = HashMap::new();
     for ele in &partition {
@@ -37,6 +38,24 @@ pub fn mount_systemlessly(
         partition_lowerdir.insert(p.clone(), Vec::new());
     }
 
+    // 1. 预先扫描 /system 下的软链接状态
+    // 如果 /system/vendor 是个指向 /vendor 的软链接，我们需要记录下来
+    let mut system_symlinks: HashMap<String, PathBuf> = HashMap::new();
+    for part in &partition {
+        let p = Path::new("/system").join(part);
+        // 使用 symlink_metadata 检查是否为软链接
+        if let Ok(meta) = std::fs::symlink_metadata(&p) {
+            if meta.is_symlink() {
+                // 解析出绝对路径目标 (例如 /vendor)
+                if let Ok(target) = std::fs::canonicalize(&p) {
+                    log::debug!("Detected symlink: {} -> {}", p.display(), target.display());
+                    system_symlinks.insert(part.to_string(), target);
+                }
+            }
+        }
+    }
+
+    // 收集模块路径
     for entry in dir.flatten() {
         let module = entry.path();
         if !module.is_dir() {
@@ -78,12 +97,41 @@ pub fn mount_systemlessly(
         }
     }
 
-    // system 分区通常不是软链接，且内容复杂，保持原有的根目录挂载方式
+    // 2. 挂载 System 分区 Overlay
     if let Err(e) = mount_partition("system", &system_lowerdir, mount_source) {
         log::warn!("mount system failed: {:#}", e);
     }
 
-    // 对于 vendor, product 等分区，使用 mountify 的子目录挂载策略 (Controlled Depth)
+    // 3. 执行软链接恢复操作 (Symlink Restoration)
+    // 如果 System Overlay 导致原有的软链接（如 /system/vendor）被掩盖变成了一个普通目录，
+    // 我们需要通过 bind mount 将其恢复指向原始目标（如 /vendor）。
+    for (part, target) in system_symlinks {
+        let mount_point = Path::new("/system").join(&part);
+        
+        // 检查当前状态：如果是目录且不再是软链接，说明被 Overlay 覆盖了
+        let is_masked = if let Ok(meta) = std::fs::symlink_metadata(&mount_point) {
+            meta.is_dir() && !meta.is_symlink()
+        } else {
+            false
+        };
+
+        if is_masked {
+            log::info!(
+                "Restoring masked symlink for {}: {} -> {}", 
+                part, 
+                mount_point.display(), 
+                target.display()
+            );
+            // 将原始目标 (如 /vendor) bind mount 到被覆盖的挂载点 (如 /system/vendor)
+            // 这样 /system/vendor 再次指向 /vendor 的内容 (其中包含了后续的 vendor overlay)
+            if let Err(e) = overlayfs::bind_mount(&target, &mount_point) {
+                log::warn!("Failed to restore symlink for {}: {:#}", part, e);
+            }
+        }
+    }
+
+    // 4. 挂载其他分区 (Vendor, Product 等)
+    // 使用子目录挂载策略，确保不破坏根目录结构
     for (k, v) in partition_lowerdir {
         if let Err(e) = mount_partition_subdirs(&k, &v, mount_source) {
             log::warn!("mount {k} failed: {:#}", e);
@@ -102,14 +150,13 @@ where
 {
     let partition_name = partition_name.as_ref();
     if lowerdir.is_empty() {
-        // log::warn!("partition: {partition_name} lowerdir is empty");
         return Ok(());
     }
 
     let partition = format!("/{partition_name}");
 
-    // 如果目标是软链接，这种全目录挂载会导致原有链接丢失（被 overlay 覆盖），
-    // 这里的检查会跳过挂载。但在 mount_partition_subdirs 中我们会处理这种情况。
+    // 如果目标本身就是软链接，且我们还没挂载 overlay，这里直接挂载会失败或产生未预期行为。
+    // 通常 system 不是软链接，但以防万一。
     if Path::new(&partition).read_link().is_ok() {
         log::warn!("partition: {partition} is a symlink, skipping root mount");
         return Ok(());
@@ -126,9 +173,8 @@ where
     overlayfs::mount_overlay(&partition, lowerdir, workdir, upperdir, mount_source)
 }
 
-/// 移植自 Mountify 的子目录挂载策略 (Controlled Depth)
-/// 1. 自动检测挂载基点（解决 /vendor -> /system/vendor 软链接问题）
-/// 2. 仅挂载模块中存在的子目录（如 /vendor/bin），避免覆盖父目录软链接
+/// 子目录挂载策略 (Controlled Depth)
+/// 移植自 Mountify，用于处理 Vendor 等分区，避免覆盖父级软链接
 fn mount_partition_subdirs(
     partition_name: &str,
     lowerdirs: &Vec<String>,
@@ -138,8 +184,10 @@ fn mount_partition_subdirs(
         return Ok(());
     }
 
-    // 1. 确定挂载基点 (Root Detection)
-    // 逻辑参考 mountify: 如果 /partition 是软链接 且 /system/partition 是实体目录，则挂载到 /system/partition
+    // 1. 确定挂载基点
+    // 如果 /vendor 是软链接 (指向 /system/vendor)，则尝试切换基点。
+    // 但通常 SAR 设备是 /system/vendor -> /vendor，这在上面 restore_symlinks 中处理。
+    // 这里处理的是反向情况或特殊的 legacy 设备。
     let p_root = Path::new("/").join(partition_name);
     let p_sys = Path::new("/system").join(partition_name);
 
@@ -154,7 +202,7 @@ fn mount_partition_subdirs(
         p_root
     };
 
-    // 2. 扫描所有模块中包含的该分区的子目录 (收集去重)
+    // 2. 扫描模块中的子目录
     let mut subdirs = HashSet::new();
     for dir in lowerdirs {
         if let Ok(entries) = std::fs::read_dir(dir) {
@@ -168,17 +216,15 @@ fn mount_partition_subdirs(
         }
     }
 
-    // 3. 对每个子目录分别进行挂载
+    // 3. 逐个挂载子目录
     for sub in subdirs {
         let mount_point = target_base.join(&sub);
 
-        // 如果设备上不存在该目标目录，则跳过（OverlayFS 需要挂载点存在）
         if !mount_point.exists() {
             log::debug!("mount point {} does not exist, skipping", mount_point.display());
             continue;
         }
 
-        // 收集该子目录对应的所有模块路径
         let mut sub_lower: Vec<String> = Vec::new();
         for dir in lowerdirs {
             let candidate = Path::new(dir).join(&sub);
@@ -191,8 +237,6 @@ fn mount_partition_subdirs(
             continue;
         }
 
-        // 配置 RW 目录（如果开启）
-        // 注意：为每个子目录分配独立的 workdir/upperdir
         let mut workdir = None;
         let mut upperdir = None;
         let system_rw_dir = Path::new(defs::SYSTEM_RW_DIR);
@@ -204,7 +248,6 @@ fn mount_partition_subdirs(
 
         let mount_point_str = mount_point.to_string_lossy().to_string();
         
-        // 调用底层的 mount_overlay
         if let Err(e) = overlayfs::mount_overlay(
             &mount_point_str,
             &sub_lower,
