@@ -38,10 +38,8 @@ pub struct DiagnosticIssue {
 
 pub fn diagnose_plan(plan: &MountPlan) -> Vec<DiagnosticIssue> {
     let mut issues = Vec::new();
-
     for op in &plan.overlay_ops {
         let target = Path::new(&op.target);
-
         if !target.exists() {
             issues.push(DiagnosticIssue {
                 level: DiagnosticLevel::Critical,
@@ -50,14 +48,14 @@ pub fn diagnose_plan(plan: &MountPlan) -> Vec<DiagnosticIssue> {
             });
         }
     }
-
-    let all_layers: Vec<(String, &PathBuf)> = plan
+    // ... (diagnose_plan 剩余代码保持不变) ...
+    // 为了节省篇幅，这里略过重复代码，请确保保留完整的 diagnose_plan 函数实现
+     let all_layers: Vec<(String, &PathBuf)> = plan
         .overlay_ops
         .iter()
         .flat_map(|op| {
             op.lowerdirs.iter().map(move |path| {
                 let mod_id = utils::extract_module_id(path).unwrap_or_else(|| "unknown".into());
-
                 (mod_id, path)
             })
         })
@@ -86,7 +84,6 @@ pub fn diagnose_plan(plan: &MountPlan) -> Vec<DiagnosticIssue> {
             }
         }
     }
-
     issues
 }
 
@@ -136,7 +133,6 @@ fn execute_overlay_op(
             for id in involved_modules {
                 final_overlay_ids.insert(id);
             }
-
             #[cfg(any(target_os = "linux", target_os = "android"))]
             if !config.disable_umount
                 && let Err(e) = crate::try_umount::send_unmountable(&op.target)
@@ -164,8 +160,6 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
     log::info!(">> Phase 1: OverlayFS Execution...");
 
     // [Step 0] Pre-analysis of symlinks in /system
-    // We need to know which partitions are symlinks BEFORE we mount /system overlay,
-    // so we can restore them later.
     let partitions_check_list = vec!["vendor", "product", "system_ext", "odm", "oem"];
     let mut system_symlinks_to_restore = HashMap::new();
     
@@ -181,23 +175,30 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         }
     }
 
-    // [Step 1] Separate System ops from others
     let (system_ops, other_ops): (Vec<_>, Vec<_>) = plan
         .overlay_ops
         .iter()
         .partition(|op| op.partition_name == "system");
 
-    // [Step 2] Mount System Overlay FIRST
+    // [Step 1] Mount System Overlay
+    // This will temporarily mask /system/vendor symlink with module's directory content
     for op in system_ops {
         execute_overlay_op(op, config, &mut final_overlay_ids, &mut final_magic_ids);
     }
 
-    // [Step 3] Restore Symlinks (Bind Mount Restoration)
-    // If /system overlay masked a symlink (e.g. /system/vendor), we restore it by bind-mounting
-    // the real target (e.g. /vendor) back onto the masked path.
+    // [Step 2] Mount Other Overlays (Vendor, etc.)
+    // Because Planner redirected "module/system/vendor" paths to the "vendor" overlay group,
+    // this step will mount the complete vendor content (system + vendor) onto the REAL /vendor path.
+    for op in other_ops {
+        execute_overlay_op(op, config, &mut final_overlay_ids, &mut final_magic_ids);
+    }
+
+    // [Step 3] Restore Symlinks (Bind Mount)
+    // Now we force /system/vendor to point to the (now overlaid) /vendor partition.
+    // This effectively "undoes" the masking caused by Step 1, and points to the result of Step 2.
     for (link_path, target_path) in system_symlinks_to_restore {
-        // Check if it is currently a directory (masked) and NOT a symlink anymore
         if let Ok(meta) = std::fs::symlink_metadata(&link_path) {
+            // Only restore if it was converted to a directory (masked)
             if meta.is_dir() && !meta.is_symlink() {
                 log::info!(
                     "Restoring masked symlink via bind-mount: {} -> {}",
@@ -205,7 +206,6 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
                     target_path.display()
                 );
                 
-                // Use rustix to perform bind mount
                 if let Err(e) = mount(
                     &target_path,
                     &link_path,
@@ -219,13 +219,7 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         }
     }
 
-    // [Step 4] Mount Other Overlays (Vendor, Product, etc.)
-    // These will now mount onto the correctly restored paths (if they were symlinks),
-    // or the standard paths.
-    for op in other_ops {
-        execute_overlay_op(op, config, &mut final_overlay_ids, &mut final_magic_ids);
-    }
-
+    // ... (Magic Mount fallback logic remains same) ...
     final_overlay_ids.retain(|id| !final_magic_ids.contains(id));
 
     let mut magic_queue: Vec<String> = final_magic_ids.iter().cloned().collect();
