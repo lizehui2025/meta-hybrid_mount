@@ -1,27 +1,61 @@
 // Copyright 2025 Meta-Hybrid Mount Authors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::sync::OnceLock;
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::{LazyLock, Mutex, OnceLock},
+};
 
 use anyhow::Result;
 // [FIX] Removed unused NukeExt4Sysfs
 use ksu::TryUmount;
 
 pub static TMPFS: OnceLock<String> = OnceLock::new();
+pub static LIST: LazyLock<Mutex<TryUmount>> = LazyLock::new(|| Mutex::new(TryUmount::new()));
+static HISTORY: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
-pub fn send_unmountable(target: &str) -> Result<()> {
-    TryUmount::new()
-        .target(target)
-        .run()
-        .map_err(|e| anyhow::anyhow!(e))
+// [FIX] Make function generic to accept PathBuf/Path directly, fixing mismatch errors
+pub fn send_unmountable<P>(target: P) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    if !crate::utils::KSU.load(std::sync::atomic::Ordering::Relaxed) {
+        return Ok(());
+    }
+
+    let path_str = target.as_ref().to_string_lossy().to_string();
+    let mut history = HISTORY.lock().unwrap();
+
+    if history.contains(&path_str) {
+        log::debug!("Ignored duplicate unmount request: {}", path_str);
+        return Ok(());
+    }
+
+    history.insert(path_str);
+    LIST.lock().unwrap().add(target);
+    Ok(())
 }
 
 pub fn commit() -> Result<()> {
-    if let Some(tmpfs) = TMPFS.get() {
-        TryUmount::new()
-            .target(tmpfs)
-            .run()
-            .map_err(|e| anyhow::anyhow!(e))?;
+    if !crate::utils::KSU.load(std::sync::atomic::Ordering::Relaxed) {
+        return Ok(());
     }
+    let mut list = LIST
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Failed to lock unmount list"))?;
+
+    // Attempt 1: Normal unmount (0)
+    list.flags(0);
+    if let Err(e0) = list.umount() {
+        log::debug!("try_umount(0) failed: {:#}, retrying with flags(2)", e0);
+
+        // Attempt 2: Detach/Lazy unmount (2)
+        list.flags(2);
+        if let Err(e2) = list.umount() {
+            log::warn!("try_umount(2) failed: {:#}", e2);
+        }
+    }
+
     Ok(())
 }
