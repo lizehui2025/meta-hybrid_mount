@@ -48,9 +48,8 @@ pub fn diagnose_plan(plan: &MountPlan) -> Vec<DiagnosticIssue> {
             });
         }
     }
-    // ... (diagnose_plan 剩余代码保持不变) ...
-    // 为了节省篇幅，这里略过重复代码，请确保保留完整的 diagnose_plan 函数实现
-     let all_layers: Vec<(String, &PathBuf)> = plan
+
+    let all_layers: Vec<(String, &PathBuf)> = plan
         .overlay_ops
         .iter()
         .flat_map(|op| {
@@ -206,12 +205,13 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
                     target_path.display()
                 );
                 
+                // [FIX] Use None instead of "" for fstype and data
                 if let Err(e) = mount(
                     &target_path,
                     &link_path,
-                    "",
+                    None,
                     MountFlags::BIND | MountFlags::REC,
-                    "",
+                    None,
                 ) {
                     log::warn!("Failed to restore symlink for {}: {}", link_path.display(), e);
                 }
@@ -219,7 +219,6 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         }
     }
 
-    // ... (Magic Mount fallback logic remains same) ...
     final_overlay_ids.retain(|id| !final_magic_ids.contains(id));
 
     let mut magic_queue: Vec<String> = final_magic_ids.iter().cloned().collect();
