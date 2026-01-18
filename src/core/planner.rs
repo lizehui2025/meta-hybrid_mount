@@ -196,17 +196,9 @@ pub fn generate(
 
         let target_path_obj = Path::new(&initial_target_path);
 
-        if fs::symlink_metadata(target_path_obj)
-            .map(|m| m.file_type().is_symlink())
-            .unwrap_or(false)
-        {
-            log::warn!(
-                "Skipping overlay on symlink partition: {}",
-                initial_target_path
-            );
-
-            continue;
-        }
+        // [Modified] Removed the skip block for symlinks.
+        // We now allow symlinks to be processed so we can resolve them to their real targets.
+        // This is crucial for devices where /vendor is a symlink to /system/vendor (or vice versa).
 
         let resolved_target = if target_path_obj.exists() {
             match target_path_obj.canonicalize() {
