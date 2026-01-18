@@ -276,15 +276,13 @@ pub fn is_xattr_supported(path: &Path) -> bool {
 pub fn is_overlay_xattr_supported(path: &Path) -> bool {
     #[cfg(any(target_os = "linux", target_os = "android"))]
     {
-        use rustix::fs::statvfs;
-        if let Ok(_) = statvfs(path) {
-            let dummy_key = "user.hybrid_check";
-            match extattr::lgetxattr(path, dummy_key) {
-                Err(e) if i32::from(e) == libc::EOPNOTSUPP => return false,
-                _ => return true,
-            }
+        let mut buf = [0u8; 1];
+        match rustix::fs::lgetxattr(path, "user.hybrid_check", &mut buf) {
+            Err(rustix::io::Errno::OPNOTSUPP) | Err(rustix::io::Errno::NOTSUP) => false,
+            _ => true,
         }
     }
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
     true
 }
 
