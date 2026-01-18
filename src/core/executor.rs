@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
 use anyhow::Result;
+use rustix::mount::{mount, MountFlags};
 use walkdir::WalkDir;
 
 use crate::{
@@ -89,72 +90,140 @@ pub fn diagnose_plan(plan: &MountPlan) -> Vec<DiagnosticIssue> {
     issues
 }
 
+fn execute_overlay_op(
+    op: &crate::core::planner::OverlayOperation,
+    config: &config::Config,
+    final_overlay_ids: &mut HashSet<String>,
+    final_magic_ids: &mut HashSet<String>,
+) {
+    let involved_modules: Vec<String> = op
+        .lowerdirs
+        .iter()
+        .filter_map(|p| utils::extract_module_id(p))
+        .collect();
+
+    let lowerdir_strings: Vec<String> = op
+        .lowerdirs
+        .iter()
+        .map(|p| p.display().to_string())
+        .collect();
+
+    let rw_root = Path::new(defs::SYSTEM_RW_DIR);
+    let part_rw = rw_root.join(&op.partition_name);
+    let upper = part_rw.join("upperdir");
+    let work = part_rw.join("workdir");
+
+    let (upper_opt, work_opt) = if upper.exists() && work.exists() {
+        (Some(upper), Some(work))
+    } else {
+        (None, None)
+    };
+
+    log::info!(
+        "Mounting {} [OVERLAY] (Layers: {})",
+        op.target,
+        lowerdir_strings.len()
+    );
+
+    match overlayfs::overlayfs::mount_overlay(
+        &op.target,
+        &lowerdir_strings,
+        work_opt,
+        upper_opt,
+        &config.mountsource,
+    ) {
+        Ok(_) => {
+            for id in involved_modules {
+                final_overlay_ids.insert(id);
+            }
+
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            if !config.disable_umount
+                && let Err(e) = crate::try_umount::send_unmountable(&op.target)
+            {
+                log::warn!("Failed to schedule unmount for {}: {}", op.target, e);
+            }
+        }
+        Err(e) => {
+            log::warn!(
+                "OverlayFS failed for {}: {}. Fallback to Magic Mount.",
+                op.target,
+                e
+            );
+            for id in involved_modules {
+                final_magic_ids.insert(id);
+            }
+        }
+    }
+}
+
 pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionResult> {
     let mut final_magic_ids: HashSet<String> = plan.magic_module_ids.iter().cloned().collect();
     let mut final_overlay_ids: HashSet<String> = HashSet::new();
 
     log::info!(">> Phase 1: OverlayFS Execution...");
 
-    for op in &plan.overlay_ops {
-        let involved_modules: Vec<String> = op
-            .lowerdirs
-            .iter()
-            .filter_map(|p| utils::extract_module_id(p))
-            .collect();
-
-        let lowerdir_strings: Vec<String> = op
-            .lowerdirs
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect();
-
-        let rw_root = Path::new(defs::SYSTEM_RW_DIR);
-        let part_rw = rw_root.join(&op.partition_name);
-        let upper = part_rw.join("upperdir");
-        let work = part_rw.join("workdir");
-
-        let (upper_opt, work_opt) = if upper.exists() && work.exists() {
-            (Some(upper), Some(work))
-        } else {
-            (None, None)
-        };
-
-        log::info!(
-            "Mounting {} [OVERLAY] (Layers: {})",
-            op.target,
-            lowerdir_strings.len()
-        );
-
-        match overlayfs::overlayfs::mount_overlay(
-            &op.target,
-            &lowerdir_strings,
-            work_opt,
-            upper_opt,
-            &config.mountsource,
-        ) {
-            Ok(_) => {
-                for id in involved_modules {
-                    final_overlay_ids.insert(id);
-                }
-
-                #[cfg(any(target_os = "linux", target_os = "android"))]
-                if !config.disable_umount
-                    && let Err(e) = crate::try_umount::send_unmountable(&op.target)
-                {
-                    log::warn!("Failed to schedule unmount for {}: {}", op.target, e);
-                }
-            }
-            Err(e) => {
-                log::warn!(
-                    "OverlayFS failed for {}: {}. Fallback to Magic Mount.",
-                    op.target,
-                    e
-                );
-                for id in involved_modules {
-                    final_magic_ids.insert(id);
+    // [Step 0] Pre-analysis of symlinks in /system
+    // We need to know which partitions are symlinks BEFORE we mount /system overlay,
+    // so we can restore them later.
+    let partitions_check_list = vec!["vendor", "product", "system_ext", "odm", "oem"];
+    let mut system_symlinks_to_restore = HashMap::new();
+    
+    for p in partitions_check_list {
+        let path = Path::new("/system").join(p);
+        if let Ok(meta) = std::fs::symlink_metadata(&path) {
+            if meta.is_symlink() {
+                if let Ok(target) = std::fs::canonicalize(&path) {
+                    log::debug!("Detected /system symlink: {} -> {}", path.display(), target.display());
+                    system_symlinks_to_restore.insert(path, target);
                 }
             }
         }
+    }
+
+    // [Step 1] Separate System ops from others
+    let (system_ops, other_ops): (Vec<_>, Vec<_>) = plan
+        .overlay_ops
+        .iter()
+        .partition(|op| op.partition_name == "system");
+
+    // [Step 2] Mount System Overlay FIRST
+    for op in system_ops {
+        execute_overlay_op(op, config, &mut final_overlay_ids, &mut final_magic_ids);
+    }
+
+    // [Step 3] Restore Symlinks (Bind Mount Restoration)
+    // If /system overlay masked a symlink (e.g. /system/vendor), we restore it by bind-mounting
+    // the real target (e.g. /vendor) back onto the masked path.
+    for (link_path, target_path) in system_symlinks_to_restore {
+        // Check if it is currently a directory (masked) and NOT a symlink anymore
+        if let Ok(meta) = std::fs::symlink_metadata(&link_path) {
+            if meta.is_dir() && !meta.is_symlink() {
+                log::info!(
+                    "Restoring masked symlink via bind-mount: {} -> {}",
+                    link_path.display(),
+                    target_path.display()
+                );
+                
+                // Use rustix to perform bind mount
+                if let Err(e) = mount(
+                    &target_path,
+                    &link_path,
+                    "",
+                    MountFlags::BIND | MountFlags::REC,
+                    "",
+                ) {
+                    log::warn!("Failed to restore symlink for {}: {}", link_path.display(), e);
+                }
+            }
+        }
+    }
+
+    // [Step 4] Mount Other Overlays (Vendor, Product, etc.)
+    // These will now mount onto the correctly restored paths (if they were symlinks),
+    // or the standard paths.
+    for op in other_ops {
+        execute_overlay_op(op, config, &mut final_overlay_ids, &mut final_magic_ids);
     }
 
     final_overlay_ids.retain(|id| !final_magic_ids.contains(id));
