@@ -19,73 +19,87 @@ use rustix::{
 
 use crate::{mount::overlayfs::utils::umount_dir, try_umount::send_unmountable};
 
-pub fn mount_overlayfs(
-    lower_dirs: &[String],
-    lowest: &str,
-    upperdir: Option<PathBuf>,
+pub fn mount_overlay(
+    root: &String,
+    module_roots: &Vec<String>,
     workdir: Option<PathBuf>,
-    dest: impl AsRef<Path>,
+    upperdir: Option<PathBuf>,
     mount_source: &str,
 ) -> Result<()> {
-    let lowerdir_config = lower_dirs
+    log::info!("mount overlay for {}", root);
+    std::env::set_current_dir(root).with_context(|| format!("failed to chdir to {root}"))?;
+    let stock_root = ".";
+
+    let mounts = Process::myself()?
+        .mountinfo()
+        .with_context(|| "get mountinfo")?;
+    
+    // 收集需要处理的子挂载点
+    let mut mount_seq = mounts
+        .0
         .iter()
-        .map(|s| s.as_ref())
-        .chain(std::iter::once(lowest))
-        .collect::<Vec<_>>()
-        .join(":");
-    log::info!(
-        "mount overlayfs on {:?}, lowerdir={}, upperdir={:?}, workdir={:?}, source={}",
-        dest.as_ref(),
-        lowerdir_config,
-        upperdir,
-        workdir,
-        mount_source
-    );
+        .filter(|m| {
+            m.mount_point.starts_with(root) && !Path::new(&root).starts_with(&m.mount_point)
+        })
+        .map(|m| m.mount_point.clone())
+        .collect::<Vec<_>>();
+    mount_seq.sort();
+    mount_seq.dedup();
 
-    let upperdir = upperdir
-        .filter(|up| up.exists())
-        .map(|e| e.display().to_string());
-    let workdir = workdir
-        .filter(|wd| wd.exists())
-        .map(|e| e.display().to_string());
-
-    let result = (|| {
-        let fs = fsopen("overlay", FsOpenFlags::FSOPEN_CLOEXEC)?;
-        let fs = fs.as_fd();
-        fsconfig_set_string(fs, "lowerdir", &lowerdir_config)?;
-        if let (Some(upperdir), Some(workdir)) = (&upperdir, &workdir) {
-            fsconfig_set_string(fs, "upperdir", upperdir)?;
-            fsconfig_set_string(fs, "workdir", workdir)?;
+    // 【新增】在主挂载发生前，预先打开子挂载点，获取 FD
+    // 这样可以避免主挂载覆盖后，软链接解析到错误的路径
+    let mut submount_fds = HashMap::new();
+    for mount_point in &mount_seq {
+        match std::fs::File::open(mount_point) {
+            Ok(f) => {
+                submount_fds.insert(mount_point.clone(), f);
+            },
+            Err(e) => {
+                log::warn!("Failed to pre-open submount {}: {}", mount_point, e);
+            }
         }
-        fsconfig_set_string(fs, "source", mount_source)?;
-        fsconfig_create(fs)?;
-        let mount = fsmount(fs, FsMountFlags::FSMOUNT_CLOEXEC, MountAttrFlags::empty())?;
-        move_mount(
-            mount.as_fd(),
-            "",
-            CWD,
-            dest.as_ref(),
-            MoveMountFlags::MOVE_MOUNT_F_EMPTY_PATH,
-        )
-    })();
+    }
 
-    if let Err(e) = result {
-        log::warn!("fsopen mount failed: {:#}, fallback to mount", e);
-        let mut data = format!("lowerdir={lowerdir_config}");
-        if let (Some(upperdir), Some(workdir)) = (upperdir, workdir) {
-            data = format!("{data},upperdir={upperdir},workdir={workdir}");
+    // 执行主目录的 overlay 挂载
+    mount_overlayfs(module_roots, root, upperdir, workdir, root, mount_source)
+        .with_context(|| "mount overlayfs for root failed")?;
+
+    // 处理子挂载点
+    for mount_point in mount_seq.iter() {
+        let relative = mount_point.replacen(root, "", 1);
+        
+        // 【修改】优先使用 /proc/self/fd/N 路径
+        let stock_root_path = if let Some(fd) = submount_fds.get(mount_point) {
+             format!("/proc/self/fd/{}", fd.as_raw_fd())
+        } else {
+             // 如果打开失败，回退到原有的相对路径逻辑
+             format!("{stock_root}{relative}")
+        };
+
+        // 检查路径是否存在（/proc/self/fd/N 也是有效的路径）
+        if !Path::new(&stock_root_path).exists() {
+            continue;
         }
-        mount(
+        
+        // 传入计算好的 stock_root_path
+        if let Err(e) = mount_overlay_child(
+            mount_point,
+            &relative,
+            module_roots,
+            &stock_root_path, 
             mount_source,
-            dest.as_ref(),
-            "overlay",
-            MountFlags::empty(),
-            Some(CString::new(data)?.as_c_str()),
-        )?;
+        ) {
+            log::warn!(
+                "failed to mount overlay for child {}: {:#}, revert",
+                mount_point,
+                e
+            );
+            umount_dir(root).with_context(|| format!("failed to revert {root}"))?;
+            bail!(e);
+        }
     }
     Ok(())
 }
-
 pub fn bind_mount(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<()> {
     log::info!(
         "bind mount {} -> {}",
