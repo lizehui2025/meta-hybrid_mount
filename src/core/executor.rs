@@ -180,24 +180,18 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
         .partition(|op| op.partition_name == "system");
 
     // [Step 1] Mount System Overlay
-    // This will temporarily mask /system/vendor symlink with module's directory content
     for op in system_ops {
         execute_overlay_op(op, config, &mut final_overlay_ids, &mut final_magic_ids);
     }
 
     // [Step 2] Mount Other Overlays (Vendor, etc.)
-    // Because Planner redirected "module/system/vendor" paths to the "vendor" overlay group,
-    // this step will mount the complete vendor content (system + vendor) onto the REAL /vendor path.
     for op in other_ops {
         execute_overlay_op(op, config, &mut final_overlay_ids, &mut final_magic_ids);
     }
 
     // [Step 3] Restore Symlinks (Bind Mount)
-    // Now we force /system/vendor to point to the (now overlaid) /vendor partition.
-    // This effectively "undoes" the masking caused by Step 1, and points to the result of Step 2.
     for (link_path, target_path) in system_symlinks_to_restore {
         if let Ok(meta) = std::fs::symlink_metadata(&link_path) {
-            // Only restore if it was converted to a directory (masked)
             if meta.is_dir() && !meta.is_symlink() {
                 log::info!(
                     "Restoring masked symlink via bind-mount: {} -> {}",
@@ -205,13 +199,13 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
                     target_path.display()
                 );
                 
-                // [FIX] Use None instead of "" for fstype and data
+                // [FIX] Use "" instead of None for fstype and data
                 if let Err(e) = mount(
                     &target_path,
                     &link_path,
-                    None,
+                    "",
                     MountFlags::BIND | MountFlags::REC,
-                    None,
+                    "",
                 ) {
                     log::warn!("Failed to restore symlink for {}: {}", link_path.display(), e);
                 }
