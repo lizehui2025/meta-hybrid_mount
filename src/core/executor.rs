@@ -199,13 +199,13 @@ pub fn execute(plan: &MountPlan, config: &config::Config) -> Result<ExecutionRes
                     target_path.display()
                 );
                 
-                // [FIX] Use "" instead of None for fstype and data
+                // [FIX] fstype="" (Arg), data=None (Into<Option<&CStr>>)
                 if let Err(e) = mount(
                     &target_path,
                     &link_path,
                     "",
                     MountFlags::BIND | MountFlags::REC,
-                    "",
+                    None,
                 ) {
                     log::warn!("Failed to restore symlink for {}: {}", link_path.display(), e);
                 }
