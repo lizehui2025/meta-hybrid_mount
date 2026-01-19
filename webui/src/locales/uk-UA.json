@@ -1,5 +1,7 @@
 {
-  "lang": { "display": "Українська" },
+  "lang": {
+    "display": "Українська"
+  },
   "common": {
     "appName": "Hybrid Mount",
     "saving": "Збереження...",
@@ -13,13 +15,11 @@
     "rebootConfirm": "Ви впевнені, що хочете перезавантажити пристрій?",
     "reboot": "Перезавантажити",
     "cancel": "Скасувати",
-    "used": "Використано",
-    "confirm": "Підтвердити",
-    "path": "Шлях",
     "refresh": "Оновити",
+    "confirm": "Підтвердити",
     "saving_btn": "Збереження...",
-    "fatalTitle": "Критична помилка",
-    "fatalMsg": "Виявлено критичну помилку. Будь ласка, експортуйте логи та зверніться по допомогу."
+    "used": "Used",
+    "saved": "Saved"
   },
   "tabs": {
     "status": "Статус",
@@ -27,8 +27,7 @@
     "modules": "Модулі",
     "logs": "Логи",
     "info": "Інфо",
-    "granary": "Архів",
-    "winnowing": "Відбір"
+    "granary": "Архів"
   },
   "status": {
     "storageTitle": "Сховище",
@@ -56,34 +55,21 @@
     "verboseLabel": "Детальний лог",
     "verboseOff": "Вимкнено",
     "verboseOn": "Увімкнено",
-    "dryRun": "Тестовий запуск (Dry Run)",
-    "overlayMode": "Режим OverlayFS",
-    "overlayModeDesc": "Вибір стратегії базового сховища",
-    "mode_tmpfs": "Tmpfs",
-    "mode_tmpfsDesc": "На базі RAM. Найшвидший I/O.\nДані не зберігаються після перезавантаження",
-    "mode_ext4": "Ext4",
-    "mode_ext4Desc": "Економить пам'ять.\nВикористовує Loop-пристрій",
-    "mode_erofs": "EROFS",
-    "mode_erofsDesc": "Високопродуктивна ФС лише для читання.\nЗначна економія місця",
     "forceExt4": "Примусовий режим Ext4",
     "useErofs": "Використовувати EROFS",
-    "enableNuke": "Увімкнути Paw Pad\n(агресивне приховування)",
     "disableUmount": "Вимкнути Umount",
     "allowUmountCoexistence": "Дозволити співіснування Umount",
     "coexistenceRequired": "Потрібна опція співіснування",
-    "coexistenceWarning": "Спочатку потрібно увімкнути опцію співіснування, щоб вимкнути Umount",
-    "hymoStealth": "Стелс-режим HymoFS",
-    "hymoDebug": "Відлагодження HymoFS",
     "moduleDir": "Каталог модулів",
-    "moduleDirDesc": "Вказує шлях для зберігання модулів",
+    "moduleDirDesc": "Set the directory where modules are stored",
     "mountSource": "Джерело монтування",
     "mountSourceDesc": "Глобальний простір імен (наприклад, KSU)",
+    "hybrid_mnt_dir": "Mount Point Path",
+    "hybrid_mnt_dir_desc": "Temporary directory for OverlayFS mounting",
     "logFile": "Файл логу",
     "partitions": "Додаткові розділи",
-    "partitionsDesc": "Додайте розділи, які потрібно монтувати",
+    "partitionsDesc": "Add partitions to mount",
     "autoPlaceholder": "Авто",
-    "pathPlaceholder": "Введіть шлях...",
-    "invalidModuleDir": "Шлях до каталогу модулів недійсний",
     "reload": "Перезавантажити",
     "save": "Зберегти",
     "reset": "Скинути до авто",
@@ -91,6 +77,7 @@
     "resetConfigTitle": "Скинути конфігурацію?",
     "resetConfigConfirm": "Це скине всі налаштування до значень за замовчуванням. Продовжити?",
     "invalidPath": "Виявлено недійсний шлях",
+    "invalidModuleDir": "Invalid Path",
     "loadSuccess": "Конфігурацію завантажено",
     "loadError": "Не вдалося завантажити конфігурацію",
     "loadDefault": "Використовується конфігурація за замовчуванням",
@@ -107,8 +94,14 @@
     "maxBackupsDesc": "Старіші резервні копії понад цю кількість будуть автоматично видалені.",
     "retentionDays": "Термін зберігання (дні)",
     "retentionDaysDesc": "Видаляти резервні копії старші за N днів (0 = без обмежень).",
-    "hybrid_mnt_dir": "Шлях точки монтування",
-    "hybrid_mnt_dir_desc": "Тимчасовий каталог для монтування OverlayFS"
+    "overlayMode": "Overlay Mode",
+    "overlayModeDesc": "Select backing storage strategy",
+    "mode_tmpfs": "Tmpfs",
+    "mode_tmpfsDesc": "RAM-based. Fastest I/O, reset on reboot.",
+    "mode_ext4": "Ext4",
+    "mode_ext4Desc": "Loopback image. Persistent, saves RAM.",
+    "mode_erofs": "EROFS",
+    "mode_erofsDesc": "Read-only compressed. High performance, space saving."
   },
   "modules": {
     "title": "Режими модулів",
@@ -122,6 +115,8 @@
     "scanError": "Не вдалося просканувати модулі",
     "saveSuccess": "Режими модулів збережено",
     "saveFailed": "Не вдалося зберегти режими модулів",
+    "noConflicts": "No conflicts detected",
+    "conflictError": "Failed to check conflicts",
     "searchPlaceholder": "Пошук модулів...",
     "filterLabel": "Фільтр:",
     "filterAll": "Усі",
@@ -132,51 +127,21 @@
     "addRule": "Додати правило",
     "noRules": "Правила шляхів не визначені.",
     "noDesc": "Опис відсутній",
-    "checkConflicts": "Перевірити конфлікти",
-    "hideConflicts": "Приховати конфлікти",
-    "conflictsTitle": "Конфлікти файлів",
-    "noConflicts": "Конфліктів файлів не виявлено.",
-    "conflictError": "Не вдалося перевірити конфлікти",
     "placeholder": "наприклад, system/fonts",
-    "statusMounted": "Змонтовано",
-    "statusUnmounted": "Не змонтовано",
-    "unmountedMsg": "Цей модуль наразі не змонтовано.",
     "modes": {
       "auto": "OverlayFS",
       "magic": "Magic Mount",
-      "hymo": "HymoFS",
       "ignore": "Вимкнено (ігнорувати)",
+      "none": "Unmounted",
       "short": {
         "auto": "Overlay",
         "magic": "Magic",
-        "hymo": "HymoFS",
         "ignore": "Ігнор"
       }
     }
   },
   "logs": {
-    "title": "Системні логи",
-    "select": "Файл логу",
-    "current": "Поточний",
-    "old": "Попередній",
-    "loading": "Завантаження логів...",
-    "refresh": "Оновити",
-    "empty": "Файл логу порожній",
-    "readFailed": "Не вдалося прочитати файл логу",
-    "readException": "Помилка читання логу",
-    "searchPlaceholder": "Пошук у логах...",
-    "filterLabel": "Рівень:",
-    "levels": {
-      "all": "Усі",
-      "info": "Інфо",
-      "warn": "Попередження",
-      "error": "Помилка"
-    },
-    "copy": "Копіювати",
-    "export": "Експорт",
-    "copySuccess": "Логи скопійовано в буфер обміну",
-    "copyFail": "Не вдалося скопіювати логи",
-    "exportFail": "Не вдалося експортувати логи"
+    "refresh": "Refresh"
   },
   "info": {
     "title": "Про проєкт",
@@ -207,13 +172,5 @@
     "restoreAction": "Відновити знімок",
     "restoring": "Відновлення...",
     "create": "Створити"
-  },
-  "winnowing": {
-    "title": "Відбір",
-    "searchPlaceholder": "Пошук шляхів...",
-    "emptyTitle": "Все чисто",
-    "emptyDesc": "Конфліктів не виявлено.",
-    "conflictPath": "Шлях конфлікту",
-    "selectProvider": "Вибрати провайдера"
   }
 }

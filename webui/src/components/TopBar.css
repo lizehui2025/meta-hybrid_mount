@@ -1,15 +1,12 @@
-/**
- * Copyright 2025 Meta-Hybrid Mount Authors
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
 .top-bar {
   flex-shrink: 0;
   background-color: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface);
   height: 120px;
   padding-top: var(--safe-area-inset-top, 0px);
-  transition: background-color 0.3s ease, height 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    height 0.3s ease;
   position: relative;
   z-index: 20;
   display: flex;
@@ -42,42 +39,29 @@
   gap: 4px;
   z-index: 50;
 }
-.menu-dropdown {
-  position: absolute;
-  top: 100%; 
-  right: 0;
-  margin-top: 4px;
-  background: var(--md-sys-color-surface-container-high);
-  border-radius: 16px;
-  padding: 8px 0;
-  z-index: 1000;
-  min-width: 200px;
-  overflow: hidden; 
-}
-.menu-item {
-  width: 100%;
-  padding: 16px 24px;
-  text-align: left;
-  background: none;
-  border: none;
-  color: var(--md-sys-color-on-surface);
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-.menu-item:hover {
-  background: var(--md-sys-color-surface-variant);
-}
 md-icon svg {
   fill: currentColor;
   width: 24px;
   height: 24px;
 }
-.lang-btn-container {
-  position: relative;
-  display: inline-flex;
+
+.lang-dialog {
+  --md-dialog-scrim-color: transparent;
+  --md-sys-color-scrim: transparent;
+}
+
+.lang-list-container {
+  padding: 0 !important;
+  min-width: 280px;
+}
+md-list {
+  background: transparent;
+  --md-list-container-color: transparent;
+}
+md-list-item {
+  border-radius: 12px;
+  margin-bottom: 4px;
+}
+md-list-item md-icon[slot="end"] {
+  color: var(--md-sys-color-primary);
 }

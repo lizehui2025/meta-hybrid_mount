@@ -17,7 +17,7 @@ use rustix::mount::{
 };
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
-use crate::try_umount::send_unmountable;
+use crate::try_umount::send_umountable;
 use crate::{
     mount::{
         magic_mount::utils::{clone_symlink, collect_module_files, mount_mirror},
@@ -119,7 +119,7 @@ impl MagicMount {
         mount_bind(module_path, target).with_context(|| {
             #[cfg(any(target_os = "linux", target_os = "android"))]
             if self.umount {
-                let _ = send_unmountable(target);
+                let _ = send_umountable(target);
             }
             format!(
                 "mount module file {} -> {}",
@@ -255,7 +255,7 @@ impl MagicMount {
 
             #[cfg(any(target_os = "linux", target_os = "android"))]
             if self.umount {
-                let _ = send_unmountable(&self.path);
+                let _ = send_umountable(&self.path);
             }
         }
         Ok(())
@@ -325,7 +325,7 @@ where
 
         #[cfg(any(target_os = "linux", target_os = "android"))]
         if umount {
-            let _ = send_unmountable(&tmp_dir);
+            let _ = send_umountable(&tmp_dir);
         }
 
         let ret = MagicMount::new(

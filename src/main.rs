@@ -1,3 +1,6 @@
+// Copyright 2026 Hybrid Mount Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod conf;
 mod core;
 mod defs;
@@ -6,7 +9,7 @@ mod mount;
 mod try_umount;
 mod utils;
 
-use core::{OryzaEngine, granary};
+use core::{MountController, granary};
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -14,7 +17,7 @@ use clap::Parser;
 use conf::{
     cli::{Cli, Commands},
     cli_handlers,
-    config::{CONFIG_FILE_DEFAULT, Config},
+    config::Config,
 };
 use mimalloc::MiMalloc;
 
@@ -31,30 +34,40 @@ fn load_config(cli: &Cli) -> Result<Config> {
         });
     }
 
-    match Config::load_default() {
-        Ok(config) => Ok(config),
-        Err(e) => {
-            let is_not_found = e
-                .root_cause()
-                .downcast_ref::<std::io::Error>()
-                .map(|io_err| io_err.kind() == std::io::ErrorKind::NotFound)
-                .unwrap_or(false);
+    Ok(Config::load_default().unwrap_or_else(|e| {
+        let is_not_found = e
+            .root_cause()
+            .downcast_ref::<std::io::Error>()
+            .map(|io_err| io_err.kind() == std::io::ErrorKind::NotFound)
+            .unwrap_or(false);
 
-            if is_not_found {
-                Ok(Config::default())
-            } else {
-                Err(e).context(format!(
-                    "Failed to load default config from {}",
-                    CONFIG_FILE_DEFAULT
-                ))
-            }
+        if is_not_found {
+            Config::default()
+        } else {
+            log::warn!("Failed to load default config, using defaults: {}", e);
+            Config::default()
         }
-    }
+    }))
+}
+
+fn load_final_config(cli: &Cli) -> Result<Config> {
+    let mut config = load_config(cli)?;
+    config.merge_with_cli(
+        cli.moduledir.clone(),
+        cli.mountsource.clone(),
+        cli.verbose,
+        cli.partitions.clone(),
+    );
+    Ok(config)
 }
 
 fn main() -> Result<()> {
+    let threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
+
     rayon::ThreadPoolBuilder::new()
-        .num_threads(4)
+        .num_threads(threads)
         .build_global()
         .unwrap();
 
@@ -80,37 +93,18 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let mut config = load_config(&cli)?;
+    let mut config = load_final_config(&cli)?;
 
-    config.merge_with_cli(
-        cli.moduledir.clone(),
-        cli.mountsource.clone(),
-        cli.verbose,
-        cli.partitions.clone(),
-    );
-
-    match granary::engage_ratoon_protocol() {
-        Ok(granary::RatoonStatus::Restored) => {
-            log::warn!(">> Config restored by Ratoon Protocol. Reloading...");
-            match load_config(&cli) {
-                Ok(new_config) => {
-                    config = new_config;
-                    config.merge_with_cli(
-                        cli.moduledir.clone(),
-                        cli.mountsource.clone(),
-                        cli.verbose,
-                        cli.partitions.clone(),
-                    );
-                    log::info!(">> Config reloaded successfully.");
-                }
-                Err(e) => {
-                    log::error!(">> Failed to reload config after restore: {}", e);
-                }
+    if let Ok(granary::RecoveryStatus::Restored) = granary::ensure_recovery_state() {
+        log::warn!(">> Config restored by Recovery Protocol. Reloading...");
+        match load_final_config(&cli) {
+            Ok(new_config) => {
+                config = new_config;
+                log::info!(">> Config reloaded successfully.");
             }
-        }
-        Ok(granary::RatoonStatus::Standby) => {}
-        Err(e) => {
-            log::error!("Failed to engage Ratoon Protocol: {}", e);
+            Err(e) => {
+                log::error!(">> Failed to reload config after restore: {}", e);
+            }
         }
     }
 
@@ -159,11 +153,11 @@ fn main() -> Result<()> {
     let mnt_base = PathBuf::from(&config.hybrid_mnt_dir);
     let img_path = PathBuf::from(defs::MODULES_IMG_FILE);
 
-    if let Err(e) = granary::create_silo(&config, "Boot Backup", "Automatic Pre-Mount") {
-        log::warn!("Granary: Failed to create boot snapshot: {}", e);
+    if let Err(e) = granary::create_snapshot(&config, "Boot Backup", "Automatic Pre-Mount") {
+        log::warn!("Backup: Failed to create boot snapshot: {}", e);
     }
 
-    OryzaEngine::new(config)
+    MountController::new(config)
         .init_storage(&mnt_base, &img_path)
         .context("Failed to initialize storage")?
         .scan_and_sync()

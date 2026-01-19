@@ -1,5 +1,7 @@
 {
-  "lang": { "display": "Español" },
+  "lang": {
+    "display": "Español"
+  },
   "common": {
     "appName": "Hybrid Mount",
     "saving": "Guardando...",
@@ -13,11 +15,11 @@
     "rebootConfirm": "¿Está seguro de que desea reiniciar?",
     "reboot": "Reiniciar",
     "cancel": "Cancelar",
-    "used": "Usado",
-    "confirm": "Confirmar",
-    "path": "Ruta",
     "refresh": "Refrescar",
-    "saving_btn": "Guardando..."
+    "confirm": "Confirmar",
+    "saving_btn": "Guardando...",
+    "used": "Used",
+    "saved": "Saved"
   },
   "tabs": {
     "status": "Estado",
@@ -25,8 +27,7 @@
     "modules": "Módulos",
     "logs": "Registros",
     "info": "Info",
-    "granary": "Granero",
-    "winnowing": "Cribado"
+    "granary": "Granero"
   },
   "status": {
     "storageTitle": "Almacenamiento",
@@ -43,31 +44,31 @@
     "activePartitions": "Particiones Activas",
     "health": "Salud del Sistema",
     "healthy": "Todo correcto. El sistema está saludable.",
-    "hymofsActive": "Activo",
-    "hymofsNotDetected": "No detectado",
     "diagInfo": "Info",
     "diagWarning": "Aviso",
-    "diagCritical": "Crítico"
+    "diagCritical": "Crítico",
+    "hymofsActive": "Activo",
+    "hymofsNotDetected": "No detectado"
   },
   "config": {
     "title": "Configuración",
     "verboseLabel": "Registro Detallado",
     "verboseOff": "No",
     "verboseOn": "Sí",
-    "dryRun": "Modo de Prueba (Dry Run)",
     "forceExt4": "Forzar Modo Ext4",
     "useErofs": "Modo EROFS",
-    "enableNuke": "Activar Paw Pad (Oculto)",
     "disableUmount": "Desactivar Umount",
     "allowUmountCoexistence": "Permitir Coexistencia",
     "coexistenceRequired": "Opción de coexistencia requerida",
-    "hymoStealth": "HymoFS Sigiloso",
-    "hymoDebug": "HymoFS Depuración",
     "moduleDir": "Dir. Módulos",
+    "moduleDirDesc": "Set the directory where modules are stored",
     "mountSource": "Fuente Montaje",
     "mountSourceDesc": "Espacio de nombres global (p. ej. KSU)",
+    "hybrid_mnt_dir": "Mount Point Path",
+    "hybrid_mnt_dir_desc": "Temporary directory for OverlayFS mounting",
     "logFile": "Archivo Log",
     "partitions": "Particiones",
+    "partitionsDesc": "Add partitions to mount",
     "autoPlaceholder": "Auto",
     "reload": "Recargar",
     "save": "Guardar",
@@ -76,6 +77,7 @@
     "resetConfigTitle": "¿Restablecer Config?",
     "resetConfigConfirm": "Esto restablecerá toda la configuración. ¿Continuar?",
     "invalidPath": "Ruta inválida detectada",
+    "invalidModuleDir": "Invalid Path",
     "loadSuccess": "Configuración cargada",
     "loadError": "Error al cargar config",
     "loadDefault": "Usando config por defecto",
@@ -87,10 +89,19 @@
     "fixBottomNavOn": "Arreglo activado",
     "fixBottomNavOff": "Arreglo desactivado",
     "granarySettings": "Ajustes de Granero",
+    "granarySettingsDesc": "Backup retention strategy",
     "maxBackups": "Máx. Copias",
     "maxBackupsDesc": "Número máximo de copias a conservar.",
     "retentionDays": "Días de Retención",
-    "retentionDaysDesc": "Eliminar copias de más de N días (0 = ilimitado)."
+    "retentionDaysDesc": "Eliminar copias de más de N días (0 = ilimitado).",
+    "overlayMode": "Overlay Mode",
+    "overlayModeDesc": "Select backing storage strategy",
+    "mode_tmpfs": "Tmpfs",
+    "mode_tmpfsDesc": "RAM-based. Fastest I/O, reset on reboot.",
+    "mode_ext4": "Ext4",
+    "mode_ext4Desc": "Loopback image. Persistent, saves RAM.",
+    "mode_erofs": "EROFS",
+    "mode_erofsDesc": "Read-only compressed. High performance, space saving."
   },
   "modules": {
     "title": "Modos de Módulo",
@@ -104,6 +115,8 @@
     "scanError": "Error al escanear módulos",
     "saveSuccess": "Modos guardados",
     "saveFailed": "Error al guardar modos",
+    "noConflicts": "No conflicts detected",
+    "conflictError": "Failed to check conflicts",
     "searchPlaceholder": "Buscar módulos...",
     "filterLabel": "Filtro:",
     "filterAll": "Todos",
@@ -114,48 +127,21 @@
     "addRule": "Añadir Regla",
     "noRules": "Sin reglas",
     "noDesc": "Sin descripción",
-    "checkConflicts": "Comprobar Conflictos",
-    "hideConflicts": "Ocultar Conflictos",
-    "conflictsTitle": "Conflictos de Archivos",
-    "noConflicts": "No se detectaron conflictos.",
-    "conflictError": "Fallo al comprobar",
     "placeholder": "ej. system/fonts",
     "modes": {
       "auto": "OverlayFS",
       "magic": "Magic Mount",
-      "hymo": "HymoFS",
       "ignore": "Deshabilitar",
+      "none": "Unmounted",
       "short": {
         "auto": "Overlay",
         "magic": "Magic",
-        "hymo": "HymoFS",
         "ignore": "Ignorar"
       }
     }
   },
   "logs": {
-    "title": "Registros del Sistema",
-    "select": "Archivo",
-    "current": "Actual",
-    "old": "Anterior",
-    "loading": "Cargando registros...",
-    "refresh": "Refrescar",
-    "empty": "El registro está vacío",
-    "readFailed": "Fallo de lectura",
-    "readException": "Error al leer registro",
-    "searchPlaceholder": "Buscar registros...",
-    "filterLabel": "Nivel:",
-    "levels": {
-      "all": "Todos",
-      "info": "Info",
-      "warn": "Aviso",
-      "error": "Error"
-    },
-    "copy": "Copiar",
-    "export": "Exportar",
-    "copySuccess": "Registros copiados",
-    "copyFail": "Fallo al copiar",
-    "exportFail": "Fallo al exportar"
+    "refresh": "Refresh"
   },
   "info": {
     "title": "Acerca de",
@@ -186,13 +172,5 @@
     "restoreAction": "Restaurar",
     "restoring": "Restaurando...",
     "create": "Crear"
-  },
-  "winnowing": {
-    "title": "Cribado",
-    "searchPlaceholder": "Buscar rutas...",
-    "emptyTitle": "Limpio",
-    "emptyDesc": "Sin conflictos.",
-    "conflictPath": "Ruta del conflicto",
-    "selectProvider": "Seleccionar"
   }
 }

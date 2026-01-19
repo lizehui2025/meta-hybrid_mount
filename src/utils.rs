@@ -1,3 +1,6 @@
+// Copyright 2026 Hybrid Mount Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::{
     ffi::CString,
     fs::{self, File, create_dir_all, remove_dir_all, remove_file, write},
@@ -27,7 +30,6 @@ const SELINUX_XATTR: &str = "security.selinux";
 const OVERLAY_OPAQUE_XATTR: &str = "trusted.overlay.opaque";
 const CONTEXT_SYSTEM: &str = "u:object_r:system_file:s0";
 const CONTEXT_VENDOR: &str = "u:object_r:vendor_file:s0";
-const OVERLAY_TEST_XATTR: &str = "trusted.overlay.test";
 
 pub static KSU: AtomicBool = AtomicBool::new(false);
 
@@ -152,11 +154,6 @@ fn copy_extended_attributes(src: &Path, dst: &Path) -> Result<()> {
             }
         }
     }
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    {
-        let _ = src;
-        let _ = dst;
-    }
     Ok(())
 }
 
@@ -169,10 +166,6 @@ pub fn set_overlay_opaque<P: AsRef<Path>>(path: P) -> Result<()> {
             b"y",
             XattrFlags::empty(),
         )?;
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    {
-        let _ = path;
     }
     Ok(())
 }
@@ -195,11 +188,6 @@ pub fn lsetfilecon<P: AsRef<Path>>(path: P, con: &str) -> Result<()> {
             );
         }
     }
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    {
-        let _ = path;
-        let _ = con;
-    }
     Ok(())
 }
 
@@ -218,7 +206,7 @@ pub fn lgetfilecon<P: AsRef<Path>>(path: P) -> Result<String> {
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 pub fn lgetfilecon<P: AsRef<Path>>(_path: P) -> Result<String> {
-    Ok(CONTEXT_SYSTEM.to_string())
+    unimplemented!();
 }
 
 pub fn copy_path_context<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> Result<()> {
@@ -251,19 +239,12 @@ pub fn camouflage_process(name: &str) -> Result<()> {
 }
 
 pub fn random_kworker_name() -> String {
-    use std::{
-        collections::hash_map::DefaultHasher,
-        hash::{Hash, Hasher},
-    };
-
-    let mut hasher = DefaultHasher::new();
-    SystemTime::now()
+    let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .hash(&mut hasher);
-    let hash = hasher.finish();
-    let x = hash % 16;
-    let y = (hash >> 4) % 10;
+        .subsec_nanos();
+    let x = nanos % 16;
+    let y = (nanos >> 4) % 10;
     format!("kworker/u{}:{}", x, y)
 }
 
@@ -281,62 +262,16 @@ pub fn is_xattr_supported(path: &Path) -> bool {
 }
 
 pub fn is_overlay_xattr_supported(path: &Path) -> bool {
-    let test_file = path.join(".overlay_xattr_test");
-    if let Err(e) = write(&test_file, b"test") {
-        log::debug!("XATTR Check: Failed to create test file: {}", e);
-        return false;
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        let mut buf = [0u8; 1];
+        !matches!(
+            rustix::fs::lgetxattr(path, "user.hybrid_check", &mut buf),
+            Err(rustix::io::Errno::OPNOTSUPP)
+        )
     }
-
-    let c_path = match CString::new(test_file.as_os_str().as_encoded_bytes()) {
-        Ok(c) => c,
-        Err(_) => {
-            let _ = remove_file(&test_file);
-            return false;
-        }
-    };
-
-    let c_key = CString::new(OVERLAY_TEST_XATTR).unwrap();
-    let c_val = CString::new("y").unwrap();
-
-    let supported = unsafe {
-        let ret = libc::lsetxattr(
-            c_path.as_ptr(),
-            c_key.as_ptr(),
-            c_val.as_ptr() as *const libc::c_void,
-            c_val.as_bytes().len(),
-            0,
-        );
-        if ret != 0 {
-            let err = std::io::Error::last_os_error();
-            log::debug!("XATTR Check: trusted.* xattr not supported: {}", err);
-            false
-        } else {
-            let mut buf = [0u8; 16];
-            let get_ret = libc::lgetxattr(
-                c_path.as_ptr(),
-                c_key.as_ptr(),
-                buf.as_mut_ptr() as *mut libc::c_void,
-                buf.len(),
-            );
-
-            if get_ret > 0 {
-                let data = &buf[..get_ret as usize];
-                if data == c_val.as_bytes() {
-                    true
-                } else {
-                    log::warn!("XATTR Check: verification failed (content mismatch)");
-                    false
-                }
-            } else {
-                let err = std::io::Error::last_os_error();
-                log::warn!("XATTR Check: set success but get failed: {}", err);
-                false
-            }
-        }
-    };
-
-    let _ = remove_file(test_file);
-    supported
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    true
 }
 
 pub fn is_mounted<P: AsRef<Path>>(path: P) -> bool {

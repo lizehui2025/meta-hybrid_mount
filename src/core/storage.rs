@@ -1,4 +1,4 @@
-// Copyright 2025 Meta-Hybrid Mount Authors
+// Copyright 2026 Hybrid Mount Developers
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::{
@@ -11,12 +11,12 @@ use anyhow::{Context, Result, bail, ensure};
 use jwalk::WalkDir;
 use rustix::{
     fs::Mode,
-    mount::{MountPropagationFlags, UnmountFlags, mount_change, unmount},
+    mount::{MountPropagationFlags, UnmountFlags, mount_change, unmount as umount},
 };
 use serde::Serialize;
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
-use crate::try_umount::send_unmountable;
+use crate::try_umount::send_umountable;
 use crate::{core::state::RuntimeState, mount::overlayfs::utils as overlay_utils, utils};
 
 const DEFAULT_SELINUX_CONTEXT: &str = "u:object_r:system_file:s0";
@@ -38,7 +38,7 @@ impl StorageHandle {
             utils::create_erofs_image(&self.mount_point, image_path)
                 .context("Failed to pack EROFS image")?;
 
-            unmount(&self.mount_point, UnmountFlags::DETACH)
+            umount(&self.mount_point, UnmountFlags::DETACH)
                 .context("Failed to unmount staging tmpfs")?;
 
             utils::mount_erofs_image(image_path, &self.mount_point)
@@ -50,7 +50,7 @@ impl StorageHandle {
 
             #[cfg(any(target_os = "linux", target_os = "android"))]
             if !disable_umount {
-                let _ = send_unmountable(&self.mount_point);
+                let _ = send_umountable(&self.mount_point);
             }
 
             self.mode = "erofs".to_string();
@@ -133,13 +133,13 @@ pub fn setup(
     disable_umount: bool,
 ) -> Result<StorageHandle> {
     if utils::is_mounted(mnt_base) {
-        let _ = unmount(mnt_base, UnmountFlags::DETACH);
+        let _ = umount(mnt_base, UnmountFlags::DETACH);
     }
 
     let try_hide = |path: &Path| {
         #[cfg(any(target_os = "linux", target_os = "android"))]
         if !disable_umount {
-            let _ = send_unmountable(path);
+            let _ = send_umountable(path);
         }
 
         #[cfg(not(any(target_os = "linux", target_os = "android")))]
@@ -204,7 +204,7 @@ fn try_setup_tmpfs(target: &Path, mount_source: &str) -> Result<bool> {
             log::warn!("Tmpfs mounted but XATTRs (trusted.*) are NOT supported.");
             log::warn!(">> Your kernel likely lacks CONFIG_TMPFS_XATTR=y.");
             log::warn!(">> Falling back to legacy Ext4 image mode.");
-            let _ = unmount(target, UnmountFlags::DETACH);
+            let _ = umount(target, UnmountFlags::DETACH);
         }
     }
 
@@ -346,7 +346,7 @@ pub fn print_status() -> Result<()> {
         if utils::is_overlay_xattr_supported(check_dir) {
             supported_modes.insert(0, "tmpfs".to_string());
         }
-        let _ = unmount(check_dir, UnmountFlags::DETACH);
+        let _ = umount(check_dir, UnmountFlags::DETACH);
         let _ = fs::remove_dir(check_dir);
     }
 
