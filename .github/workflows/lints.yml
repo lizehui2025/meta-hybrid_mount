@@ -1,11 +1,8 @@
 name: lints-check
 on:
   pull_request:
-    branches: ["master"]
-    paths:
-      - 'src/**'
-      - 'Cargo.*'
-      - 'build.rs'
+    branches:
+      - '**'
   push:
     branches:
       - '**'

@@ -79,11 +79,7 @@ pub fn get_usage(path: &Path) -> (u64, u64, u8) {
 
         let used = total - free;
 
-        let percent = if total > 0 {
-            (used * 100 / total) as u8
-        } else {
-            0
-        };
+        let percent = (used * 100).checked_div(total).unwrap_or(0) as u8;
 
         (total, used, percent)
     } else {
@@ -257,6 +253,8 @@ fn setup_ext4_image(target: &Path, img_path: &Path, moduledir: &Path) -> Result<
     utils::lsetfilecon(img_path, "u:object_r:ksu_file:s0").ok();
 
     log::info!("- Mounting image");
+
+    utils::ensure_dir_exists(target)?;
     if overlay_utils::AutoMountExt4::try_new(img_path, target, false).is_err() {
         if utils::repair_image(img_path).is_ok() {
             overlay_utils::AutoMountExt4::try_new(img_path, target, false)
@@ -335,9 +333,7 @@ pub fn print_status() -> Result<()> {
 
         used = total - free;
 
-        if total > 0 {
-            percent = (used * 100 / total) as u8;
-        }
+        percent = (used * 100).checked_div(total).unwrap_or(0) as u8;
     }
 
     let mut supported_modes = vec!["ext4".to_string(), "erofs".to_string()];

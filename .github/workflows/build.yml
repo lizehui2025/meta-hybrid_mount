@@ -9,6 +9,14 @@ on:
       - '.gitignore'
       - 'notify'
       - 'tools/notify/**'
+  pull_request:
+    branches:
+      dev
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'notify'
+      - 'tools/notify/**'
   workflow_dispatch:
 
 jobs:
