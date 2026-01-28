@@ -1,7 +1,5 @@
-// Copyright 2026 Hybrid Mount Developers
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::{
+    collections::HashSet,
     ffi::CString,
     fs::{self, File, OpenOptions, create_dir_all, remove_dir_all, remove_file, write},
     io::Write,
@@ -9,7 +7,7 @@ use std::{
         ffi::OsStrExt,
         fs::{FileTypeExt, MetadataExt, PermissionsExt, symlink},
     },
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{OnceLock, atomic::AtomicBool},
     time::{SystemTime, UNIX_EPOCH},
@@ -111,7 +109,17 @@ pub fn atomic_write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, content: C) -> Resu
         file.write_all(content.as_ref())?;
     }
 
-    fs::rename(&temp_file, path)?;
+    if let Err(e) = fs::rename(&temp_file, path) {
+        log::debug!(
+            "atomic_write: rename failed ({}), trying copy fallback...",
+            e
+        );
+        if let Err(copy_err) = fs::copy(&temp_file, path) {
+            let _ = fs::remove_file(&temp_file);
+            return Err(copy_err).context("atomic_write copy fallback failed");
+        }
+        let _ = fs::remove_file(&temp_file);
+    }
     Ok(())
 }
 
@@ -433,7 +441,6 @@ fn apply_system_context(current: &Path, relative: &Path) -> Result<()> {
         && let Ok(parent_ctx) = lgetfilecon(parent)
         && parent_ctx != CONTEXT_ROOTFS
     {
-        // 尝试继承父目录
         let guessed = guess_context_by_path(&system_path);
         if guessed == CONTEXT_HAL && parent_ctx == CONTEXT_VENDOR {
             return lsetfilecon(current, CONTEXT_HAL);
@@ -445,7 +452,13 @@ fn apply_system_context(current: &Path, relative: &Path) -> Result<()> {
     lsetfilecon(current, target_context)
 }
 
-fn native_cp_r(src: &Path, dst: &Path, relative: &Path, repair: bool) -> Result<()> {
+fn native_cp_r(
+    src: &Path,
+    dst: &Path,
+    relative: &Path,
+    repair: bool,
+    visited: &mut HashSet<(u64, u64)>,
+) -> Result<()> {
     if !dst.exists() {
         if src.is_dir() {
             create_dir_all(dst)?;
@@ -470,9 +483,15 @@ fn native_cp_r(src: &Path, dst: &Path, relative: &Path, repair: bool) -> Result<
 
         let metadata = entry.metadata()?;
         let ft = metadata.file_type();
+        let dev = metadata.dev();
+        let ino = metadata.ino();
 
         if ft.is_dir() {
-            native_cp_r(&src_path, &dst_path, &next_relative, repair)?;
+            if !visited.insert((dev, ino)) {
+                log::warn!("Loop detected at {}, skipping", src_path.display());
+                continue;
+            }
+            native_cp_r(&src_path, &dst_path, &next_relative, repair, visited)?;
         } else if ft.is_symlink() {
             if dst_path.exists() {
                 remove_file(&dst_path)?;
@@ -504,7 +523,8 @@ pub fn sync_dir(src: &Path, dst: &Path, repair_context: bool) -> Result<()> {
         return Ok(());
     }
     ensure_dir_exists(dst)?;
-    native_cp_r(src, dst, Path::new(""), repair_context).with_context(|| {
+    let mut visited = HashSet::new();
+    native_cp_r(src, dst, Path::new(""), repair_context, &mut visited).with_context(|| {
         format!(
             "Failed to natively sync {} to {}",
             src.display(),

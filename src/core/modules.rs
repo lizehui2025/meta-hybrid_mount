@@ -1,17 +1,16 @@
-// Copyright 2026 Hybrid Mount Developers
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::{
     collections::HashSet,
     fs::{self},
     io::{BufRead, BufReader},
     os::unix::fs::{FileTypeExt, MetadataExt},
     path::{Path, PathBuf},
+    sync::OnceLock,
 };
 
 use anyhow::Result;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use extattr::lgetxattr;
+use regex_lite::Regex;
 use serde::Serialize;
 
 use crate::{
@@ -22,6 +21,8 @@ use crate::{
     },
     defs, utils,
 };
+
+static MODULE_PROP_REGEX: OnceLock<Regex> = OnceLock::new();
 
 #[derive(Default)]
 struct ModuleProp {
@@ -34,7 +35,9 @@ struct ModuleProp {
 impl From<&Path> for ModuleProp {
     fn from(path: &Path) -> Self {
         let mut prop = ModuleProp::default();
-        let re = regex_lite::Regex::new(r"^([a-zA-Z0-9_.]+)=(.*)$").unwrap();
+        let re = MODULE_PROP_REGEX.get_or_init(|| {
+            Regex::new(r"^([a-zA-Z0-9_.]+)=(.*)$").expect("Failed to compile module prop regex")
+        });
 
         if let Ok(file) = fs::File::open(path) {
             for line in BufReader::new(file).lines().map_while(Result::ok) {

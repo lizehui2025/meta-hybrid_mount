@@ -1,6 +1,3 @@
-// Copyright 2026 Hybrid Mount Developers
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 mod conf;
 mod core;
 mod defs;
@@ -66,10 +63,9 @@ fn main() -> Result<()> {
         .map(|n| n.get())
         .unwrap_or(4);
 
-    rayon::ThreadPoolBuilder::new()
+    let _ = rayon::ThreadPoolBuilder::new()
         .num_threads(threads)
-        .build_global()
-        .unwrap();
+        .build_global();
 
     let cli = Cli::parse();
 

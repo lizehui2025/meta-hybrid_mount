@@ -1,6 +1,3 @@
-// Copyright 2026 Hybrid Mount Developers
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -226,7 +223,8 @@ fn setup_ext4_image(target: &Path, img_path: &Path, moduledir: &Path) -> Result<
             total_size,
         );
 
-        let grow_size = 128 * 1024 * 1024 + total_size;
+        let min_size = 64 * 1024 * 1024;
+        let grow_size = std::cmp::max((total_size as f64 * 1.2) as u64, min_size);
 
         fs::File::create(img_path)
             .context("Failed to create ext4 image file")?

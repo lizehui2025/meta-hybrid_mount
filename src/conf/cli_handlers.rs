@@ -1,6 +1,3 @@
-// Copyright 2026 Hybrid Mount Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::{fs::File, path::Path};
 
 use anyhow::{Context, Result, bail};
@@ -11,7 +8,8 @@ use crate::{
         cli::{Cli, PoaceaeAction},
         config::{CONFIG_FILE_DEFAULT, Config},
     },
-    core::{granary, inventory, modules, planner, poaceae, storage}, // Added poaceae
+    core::{granary, inventory, modules, planner, poaceae, storage},
+    utils,
 };
 
 #[derive(Serialize)]
@@ -94,6 +92,8 @@ pub fn handle_save_config(cli: &Cli, payload: &str) -> Result<()> {
 }
 
 pub fn handle_save_module_rules(module_id: &str, payload: &str) -> Result<()> {
+    utils::validate_module_id(module_id)?;
+
     let json_bytes = (0..payload.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&payload[i..i + 2], 16))

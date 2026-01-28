@@ -1,9 +1,7 @@
-// Copyright 2026 Hybrid Mount Developers
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::{
     fs,
     io::Write,
+    os::fd::AsFd,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -37,21 +35,30 @@ const BACKUP_DIR: &str = "/data/adb/meta-hybrid/backups";
 
 pub fn ensure_recovery_state() -> Result<RecoveryStatus> {
     let path = Path::new(RECOVERY_COUNTER_FILE);
-    let mut count = 0;
 
-    if path.exists() {
-        let content = fs::read_to_string(path).unwrap_or_default();
-        count = content.trim().parse::<u8>().unwrap_or(0);
-    }
+    let file = fs::File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(path)
+        .context("Failed to open boot counter")?;
+
+    rustix::fs::flock(&file, rustix::fs::FlockOperation::LockExclusive)
+        .context("Failed to lock boot counter")?;
+
+    let mut count = 0;
+    let content = std::io::read_to_string(file.as_fd()).unwrap_or_default();
+    count = content.trim().parse::<u8>().unwrap_or(0);
 
     count += 1;
 
-    {
-        let mut file = fs::File::create(path).context("Failed to open boot counter for writing")?;
-        write!(file, "{}", count)?;
-        file.sync_all()
-            .context("Failed to sync boot counter to disk")?;
-    }
+    file.set_len(0)?;
+    let mut file = file;
+    write!(file, "{}", count)?;
+    file.sync_all()
+        .context("Failed to sync boot counter to disk")?;
+
+    let _ = rustix::fs::flock(&file, rustix::fs::FlockOperation::Unlock);
 
     log::info!(">> Recovery Protocol: Boot counter at {}", count);
 
