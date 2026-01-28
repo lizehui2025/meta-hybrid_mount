@@ -2,7 +2,7 @@
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 #[cfg(any(target_os = "linux", target_os = "android"))]
-use std::{fs, process::Command};
+use std::process::Command;
 
 use anyhow::{Context, Result};
 #[cfg(any(target_os = "linux", target_os = "android"))]
