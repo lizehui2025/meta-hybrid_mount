@@ -13,6 +13,56 @@ use crate::{
     },
 };
 
+use crate::core::ops::merge;
+
+impl MountController<ModulesReady> {
+    pub fn generate_plan(mut self) -> Result<MountController<Planned>> {
+        // === 新增：合并策略判断 ===
+        // 你可以在 Config 中添加一个字段 use_merge_strategy 来控制
+        let use_merge_strategy = true; // 或者从 self.config 读取
+
+        let modules_to_plan = if use_merge_strategy {
+            // 定义合并目录，例如 /data/adb/mountify/merged 或 tmpfs挂载点
+            let merge_dir = self.state.handle.mount_point.join("merged_workspace");
+            
+            // 执行合并
+            // 注意：inventory::scan 返回的顺序通常可能需要调整，确保 merge_modules 里的覆盖顺序正确
+            // 假设 self.state.modules 里的顺序是：[高优先级, ..., 低优先级]
+            // 合并时我们需要：先拷贝低优先级，再拷贝高优先级。
+            let mut sorted_modules = self.state.modules.clone();
+            sorted_modules.reverse(); // 翻转为：低 -> 高
+
+            let super_module = merge::merge_modules(&sorted_modules, &merge_dir)?;
+            
+            // 返回只包含超级模块的列表
+            vec![super_module]
+        } else {
+            // 传统模式：直接使用所有模块
+            self.state.modules.clone()
+        };
+        // ========================
+
+        // 使用处理过的 modules_to_plan 生成计划
+        let plan = planner::generate(
+            &self.config,
+            &modules_to_plan, // 传入 "超级模块" 或 原始列表
+            &self.state.handle.mount_point,
+        )?;
+
+        // 注意：这里保存到 state 的 modules 最好还是原始的 modules，
+        // 这样后续 finalize 更新描述时还能知道有多少个真实模块被加载。
+        // 但是 plan 里面使用的是合并后的路径。
+        Ok(MountController {
+            config: self.config,
+            state: Planned {
+                handle: self.state.handle,
+                modules: self.state.modules, // 保持原始模块列表用于记录状态
+                plan,
+            },
+        })
+    }
+}
+
 pub struct Init;
 
 pub struct StorageReady {
