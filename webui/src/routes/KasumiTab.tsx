@@ -57,11 +57,13 @@ export default function KasumiTab() {
   const [loading, setLoading] = createSignal(true);
   const [pending, setPending] = createSignal(false);
   const [showKmiDialog, setShowKmiDialog] = createSignal(false);
+  const [showUnloadLkmWarning, setShowUnloadLkmWarning] = createSignal(false);
   const [expandedSection, setExpandedSection] = createSignal<string | null>(
     null,
   );
   const [forms, setForms] = createStore({
     kmi: "",
+    unameMode: "scoped" as "scoped" | "global",
     release: "",
     version: "",
     cmdline: "",
@@ -96,8 +98,9 @@ export default function KasumiTab() {
 
     setForms({
       kmi: nextStatus.lkm?.kmi_override || config.lkm_kmi_override || "",
-      release: uname.release || config.uname_release || "",
-      version: uname.version || config.uname_version || "",
+      unameMode: config.uname_mode === "global" ? "global" : "scoped",
+      release: uname.release || "",
+      version: uname.version || "",
       cmdline: config.cmdline_value || "",
       mapsTargetIno: "",
       mapsTargetDev: "0",
@@ -210,6 +213,25 @@ export default function KasumiTab() {
     }
   }
 
+  async function saveAndApplyUname() {
+    const release = forms.release.trim();
+    const version = forms.version.trim();
+
+    await API.setKasumiUnameMode(forms.unameMode);
+    await API.setKasumiUname({ release, version });
+    if (release && version) {
+      await API.applyKasumiUname(forms.unameMode, {
+        release,
+        version,
+      });
+    }
+  }
+
+  async function clearUname() {
+    await API.setKasumiUnameMode(forms.unameMode);
+    await API.clearKasumiUname(forms.unameMode);
+  }
+
   onMount(() => {
     void initialize();
   });
@@ -258,6 +280,13 @@ export default function KasumiTab() {
   );
   const statusChipText = createMemo(
     () => status()?.mirror_path || config()?.mirror_path || "-",
+  );
+  const unameModeDescription = createMemo(() =>
+    forms.unameMode === "global"
+      ? (uiStore.L.kasumi?.unameModeGlobalDesc ??
+        "System-wide: rewrites init_uts_ns, every task sees fake values.")
+      : (uiStore.L.kasumi?.unameModeScopedDesc ??
+        "Per-process: only Kasumi-hidden UIDs see fake values."),
   );
 
   function isSectionExpanded(id: string) {
@@ -325,6 +354,38 @@ export default function KasumiTab() {
           <div slot="actions">
             <md-text-button onClick={() => setShowKmiDialog(false)}>
               {uiStore.L.common?.cancel ?? "Cancel"}
+            </md-text-button>
+          </div>
+        </md-dialog>
+      </div>
+
+      <div class="dialog-container">
+        <md-dialog
+          open={showUnloadLkmWarning()}
+          onclose={() => setShowUnloadLkmWarning(false)}
+          class="transparent-scrim"
+        >
+          <div slot="headline">
+            {uiStore.L.kasumi?.unloadLkmWarningTitle ?? "注意！"}
+          </div>
+          <div slot="content">
+            {uiStore.L.kasumi?.unloadLkmWarningBody ??
+              "Kasumi 使用 TSR 模式时可能无法卸载，如 5 秒内未成功卸载，Kasumi 将会在 3 秒后自动安全重启，你确定要卸载吗？"}
+          </div>
+          <div slot="actions">
+            <md-text-button onClick={() => setShowUnloadLkmWarning(false)}>
+              {uiStore.L.kasumi?.unloadLkmWarningCancel ?? "取消"}
+            </md-text-button>
+            <md-text-button
+              onClick={() => {
+                setShowUnloadLkmWarning(false);
+                void runAction(
+                  () => API.unloadKasumiLkm(),
+                  uiStore.L.kasumi?.unloadLkm ?? "LKM unloaded",
+                );
+              }}
+            >
+              {uiStore.L.kasumi?.unloadLkmWarningConfirm ?? "确定"}
             </md-text-button>
           </div>
         </md-dialog>
@@ -453,15 +514,12 @@ export default function KasumiTab() {
                     <md-filled-button
                       disabled={pending()}
                       onClick={() =>
-                        runAction(
-                          () =>
-                            lkm()?.loaded
-                              ? API.unloadKasumiLkm()
-                              : API.loadKasumiLkm(),
-                          lkm()?.loaded
-                            ? (uiStore.L.kasumi?.unloadLkm ?? "LKM unloaded")
-                            : (uiStore.L.kasumi?.loadLkm ?? "LKM loaded"),
-                        )
+                        lkm()?.loaded
+                          ? setShowUnloadLkmWarning(true)
+                          : runAction(
+                              () => API.loadKasumiLkm(),
+                              uiStore.L.kasumi?.loadLkm ?? "LKM loaded",
+                            )
                       }
                     >
                       {lkm()?.loaded
@@ -584,6 +642,33 @@ export default function KasumiTab() {
                         {uiStore.L.kasumi?.kernelDebugTitle ?? "Kernel Debug"}
                       </span>
                     </button>
+                    <button
+                      type="button"
+                      class={`kasumi-config-tile ${config()?.enable_selinux_fix ? "active" : ""}`}
+                      disabled={pending()}
+                      onClick={() =>
+                        runAction(
+                          () =>
+                            API.setKasumiSelinuxFix(
+                              !Boolean(config()?.enable_selinux_fix),
+                            ),
+                          uiStore.L.kasumi?.selinuxFixUpdated ??
+                            "SELinux guard updated",
+                        )
+                      }
+                    >
+                      <md-ripple></md-ripple>
+                      <div class="kasumi-config-icon">
+                        <md-icon>
+                          <svg viewBox="0 0 24 24">
+                            <path d={ICONS.shield} />
+                          </svg>
+                        </md-icon>
+                      </div>
+                      <span class="kasumi-config-label">
+                        {uiStore.L.kasumi?.selinuxFixTitle ?? "SELinux Guard"}
+                      </span>
+                    </button>
                   </div>
                   <Show
                     when={
@@ -631,65 +716,140 @@ export default function KasumiTab() {
             >
               <div class="kasumi-section-body-inner">
                 <div class="kasumi-section-body field-stack">
-                  <md-outlined-text-field
-                    class="full-field kasumi-input-field"
-                    label={uiStore.L.kasumi?.unameRelease ?? "Uname Release"}
-                    value={forms.release}
-                    onInput={(e: Event) =>
-                      setForms(
-                        "release",
-                        (e.currentTarget as HTMLInputElement).value,
-                      )
-                    }
-                    disabled={pending()}
-                  />
-                  <md-outlined-text-field
-                    class="full-field kasumi-input-field"
-                    label={uiStore.L.kasumi?.unameVersion ?? "Uname Version"}
-                    value={forms.version}
-                    onInput={(e: Event) =>
-                      setForms(
-                        "version",
-                        (e.currentTarget as HTMLInputElement).value,
-                      )
-                    }
-                    disabled={pending()}
-                  />
-                  <div class="button-row">
-                    <md-outlined-button
-                      disabled={pending()}
-                      onClick={() => void fillOriginalKernelUname()}
-                    >
-                      {uiStore.L.kasumi?.fillOriginalKernel ??
-                        "Load Original Kernel Values"}
-                    </md-outlined-button>
-                    <md-filled-button
-                      disabled={pending()}
-                      onClick={() =>
-                        runAction(
-                          () =>
-                            API.setKasumiUname({
-                              release: forms.release,
-                              version: forms.version,
-                            }),
-                          uiStore.L.common?.saved ?? "Saved",
-                        )
-                      }
-                    >
-                      {uiStore.L.kasumi?.saveUname ?? "Save Uname"}
-                    </md-filled-button>
-                    <md-outlined-button
-                      disabled={pending()}
-                      onClick={() =>
-                        runAction(
-                          () => API.clearKasumiUname(),
-                          uiStore.L.kasumi?.clearUname ?? "Uname cleared",
-                        )
-                      }
-                    >
-                      {uiStore.L.kasumi?.clearUname ?? "Clear Uname"}
-                    </md-outlined-button>
+                  <div class="uname-panel">
+                    <div class="uname-panel-head">
+                      <div>
+                        <div class="uname-panel-title">
+                          {uiStore.L.kasumi?.unameSpoofTitle ??
+                            "Kernel version spoofing"}
+                        </div>
+                        <div class="uname-panel-subtitle">
+                          {forms.release || forms.version
+                            ? `${forms.release || "-"} · ${forms.version || "-"}`
+                            : (uiStore.L.kasumi?.unameEmptyHint ??
+                              "No spoofed uname configured.")}
+                        </div>
+                      </div>
+                      <div
+                        class={`state-pill ${forms.unameMode === "global" ? "active" : ""}`}
+                      >
+                        {forms.unameMode === "global"
+                          ? (uiStore.L.kasumi?.unameModeGlobal ?? "Global")
+                          : (uiStore.L.kasumi?.unameModeScoped ?? "Scoped")}
+                      </div>
+                    </div>
+
+                    <div class="uname-field-grid">
+                      <md-outlined-text-field
+                        class="full-field kasumi-input-field"
+                        label={uiStore.L.kasumi?.unameRelease ?? "Version name"}
+                        value={forms.release}
+                        supporting-text={
+                          uiStore.L.kasumi?.unameReleaseDesc ??
+                          "Kernel release, for example 5.15.0-generic."
+                        }
+                        onInput={(e: Event) =>
+                          setForms(
+                            "release",
+                            (e.currentTarget as HTMLInputElement).value,
+                          )
+                        }
+                        disabled={pending()}
+                      />
+                      <md-outlined-text-field
+                        class="full-field kasumi-input-field"
+                        label={uiStore.L.kasumi?.unameVersion ?? "Build time"}
+                        value={forms.version}
+                        supporting-text={
+                          uiStore.L.kasumi?.unameVersionDesc ??
+                          "Kernel version/build timestamp."
+                        }
+                        onInput={(e: Event) =>
+                          setForms(
+                            "version",
+                            (e.currentTarget as HTMLInputElement).value,
+                          )
+                        }
+                        disabled={pending()}
+                      />
+                    </div>
+
+                    <div class="uname-mode-row">
+                      <div class="uname-segmented" role="radiogroup">
+                        <button
+                          type="button"
+                          class={forms.unameMode === "scoped" ? "selected" : ""}
+                          disabled={pending()}
+                          onClick={() => setForms("unameMode", "scoped")}
+                        >
+                          {uiStore.L.kasumi?.unameModeScoped ?? "Scoped"}
+                        </button>
+                        <button
+                          type="button"
+                          class={forms.unameMode === "global" ? "selected" : ""}
+                          disabled={pending()}
+                          onClick={() => setForms("unameMode", "global")}
+                        >
+                          {uiStore.L.kasumi?.unameModeGlobal ?? "Global"}
+                        </button>
+                      </div>
+                      <div class="uname-mode-desc">
+                        {unameModeDescription()}
+                      </div>
+                    </div>
+
+                    <div class="button-row">
+                      <md-outlined-button
+                        disabled={pending()}
+                        onClick={() => void fillOriginalKernelUname()}
+                      >
+                        {uiStore.L.kasumi?.fillOriginalKernel ??
+                          "Use current kernel info"}
+                      </md-outlined-button>
+                      <md-filled-button
+                        disabled={
+                          pending() ||
+                          !forms.release.trim() ||
+                          !forms.version.trim()
+                        }
+                        onClick={() =>
+                          runAction(
+                            saveAndApplyUname,
+                            uiStore.L.kasumi?.applyUname ?? "Uname applied",
+                          )
+                        }
+                      >
+                        {uiStore.L.kasumi?.applyUname ?? "Apply Uname"}
+                      </md-filled-button>
+                      <md-outlined-button
+                        disabled={pending()}
+                        onClick={() =>
+                          runAction(
+                            clearUname,
+                            uiStore.L.kasumi?.clearUname ?? "Uname cleared",
+                          )
+                        }
+                      >
+                        {uiStore.L.kasumi?.clearUname ?? "Clear Uname"}
+                      </md-outlined-button>
+                      <Show when={forms.unameMode === "global"}>
+                        <md-outlined-button
+                          disabled={pending()}
+                          onClick={() =>
+                            runAction(
+                              () => API.restoreKasumiUnameGlobal(),
+                              uiStore.L.kasumi?.restoreUnameGlobal ??
+                                "Original uname restored",
+                            )
+                          }
+                        >
+                          {uiStore.L.kasumi?.restoreUnameGlobal ??
+                            "Restore original"}
+                        </md-outlined-button>
+                      </Show>
+                    </div>
                   </div>
+
                   <md-outlined-text-field
                     class="full-field kasumi-input-field"
                     label={uiStore.L.kasumi?.cmdlineValue ?? "Cmdline Value"}

@@ -36,8 +36,6 @@
     "moduleDirDesc": "Встановіть каталог, де зберігаються модулі",
     "mountSource": "Джерело монтування",
     "mountSourceDesc": "Глобальний простір імен (наприклад, KSU)",
-    "partitions": "Додаткові розділи",
-    "partitionsDesc": "Додати розділи для монтування",
     "reload": "Перезавантажити",
     "save": "Зберегти",
     "resetConfig": "Скинути конфіг",
@@ -66,7 +64,8 @@
     "mode_tmpfsDesc": "На основі оперативної пам'яті. Найшвидший ввід/вивід, скидання після перезавантаження.",
     "mode_ext4": "Ext4",
     "mode_ext4Desc": "Образ з циклічним замиканням. Постійне, економить оперативну пам'ять.",
-    "enableOverlayFallback": "Увімкнути fallback overlay"
+    "enableOverlayFallback": "Увімкнути fallback overlay",
+    "daemonStartupMode": "Постійний демон"
   },
   "modules": {
     "reload": "Оновити",
@@ -98,7 +97,11 @@
     "disableTag": "Вимкнено",
     "nativeTag": "Стелс",
     "unavailableTag": "Недоступно",
-    "kasumiUnavailableHint": "Kasumi увімкнено, але зараз він недоступний."
+    "kasumiUnavailableHint": "Kasumi увімкнено, але зараз він недоступний.",
+    "mountError": "Помилка монтування",
+    "clearMountErrors": "Очистити помилки",
+    "mountErrorsCleared": "Помилки очищено",
+    "mountErrorsClearFailed": "Не вдалося очистити помилки"
   },
   "kasumi": {
     "title": "Стан Kasumi",
@@ -155,6 +158,7 @@
     "userHidePathRequired": "Шлях для приховування не може бути порожнім",
     "stealthUpdated": "Stealth оновлено",
     "hidexattrUpdated": "HideXattr оновлено",
+    "selinuxFixUpdated": "SELinux Guard оновлено",
     "ignoreProtocolUpdated": "Політику невідповідності протоколу оновлено",
     "kernelDebugUpdated": "Налагодження ядра оновлено",
     "kmiOverride": "Перевизначення KMI",
@@ -163,6 +167,7 @@
     "lastError": "Остання помилка",
     "stealthTitle": "Стелс",
     "hidexattrTitle": "Приховування xattr",
+    "selinuxFixTitle": "SELinux Guard",
     "ignoreProtocolTitle": "Ігнорувати невідповідність протоколу",
     "ignoreProtocolHint": "Дозволяє Kasumi продовжувати роботу, навіть якщо userspace API і протокол ядра не повністю збігаються.",
     "lkmUnavailableHint": "Kasumi увімкнено, але модуль ядра ще не завантажено.",

@@ -10,11 +10,12 @@ import {
 } from "solid-js";
 import { uiStore } from "../lib/stores/uiStore";
 import { moduleStore } from "../lib/stores/moduleStore";
-import { kasumiStore } from "../lib/stores/kasumiStore";
 import { ICONS } from "../lib/constants";
+import { ENABLE_KASUMI } from "../lib/constants_gen";
+import { features } from "../lib/features";
+import { API } from "../lib/api";
 import Skeleton from "../components/Skeleton";
 import BottomActions from "../components/BottomActions";
-import { normalizeModuleMode } from "../lib/moduleMode";
 import type { Module, MountMode } from "../lib/types";
 import "./ModulesTab.css";
 import "@material/web/iconbutton/filled-tonal-icon-button.js";
@@ -53,9 +54,11 @@ export default function ModulesTab() {
     setVisibleCount(BATCH_SIZE);
   });
 
-  const kasumiMasterEnabled = createMemo(() => kasumiStore.enabled);
+  const kasumiMasterEnabled = createMemo(
+    () => ENABLE_KASUMI && features.kasumiEnabled,
+  );
   const kasumiAvailable = createMemo(
-    () => kasumiMasterEnabled() && Boolean(kasumiStore.status?.available),
+    () => ENABLE_KASUMI && features.kasumiAvailable,
   );
   const showKasumiStrategy = createMemo(() => kasumiMasterEnabled());
 
@@ -87,25 +90,56 @@ export default function ModulesTab() {
     }
   }
 
-  const filteredModules = createMemo(() =>
-    moduleStore.modules.filter((module) => {
-      const q = deferredSearchQuery().toLowerCase();
-      if (!module.is_mounted && !showUmount()) {
+  const filteredModules = createMemo(() => {
+    const q = deferredSearchQuery().trim().toLowerCase();
+    const currentFilter = filterType();
+    const includeUmount = showUmount();
+
+    return moduleStore.modules.filter((module) => {
+      const hasMountError = Boolean(module.mount_error);
+      if (!module.is_mounted && !includeUmount && !hasMountError) {
         return false;
       }
-      const matchSearch =
-        module.name.toLowerCase().includes(q) || module.id.toLowerCase().includes(q);
-      if (!matchSearch) return false;
       if (
-        filterType() !== "all" &&
-        normalizeModuleMode(module.mode) !== filterType()
+        q &&
+        !module.name.toLowerCase().includes(q) &&
+        !module.id.toLowerCase().includes(q)
       ) {
+        return false;
+      }
+      if (currentFilter !== "all" && module.mode !== currentFilter) {
         return false;
       }
 
       return true;
-    }),
+    });
+  });
+  const [clearingErrors, setClearingErrors] = createSignal(false);
+  const hasMountErrors = createMemo(() =>
+    moduleStore.modules.some((m) => !!m.mount_error),
   );
+
+  async function clearMountErrors() {
+    setClearingErrors(true);
+    try {
+      await API.clearMountErrors();
+      uiStore.showToast(
+        uiStore.L.modules?.mountErrorsCleared || "Mount errors cleared",
+        "success",
+      );
+      await moduleStore.loadModules(true);
+    } catch (e: any) {
+      uiStore.showToast(
+        e?.message ||
+          uiStore.L.modules?.mountErrorsClearFailed ||
+          "Failed to clear mount errors",
+        "error",
+      );
+    } finally {
+      setClearingErrors(false);
+    }
+  }
+
   const canLoadMore = createMemo(
     () => visibleCount() < filteredModules().length,
   );
@@ -125,8 +159,9 @@ export default function ModulesTab() {
   function getModeLabel(mod: Module) {
     const modes = uiStore.L.modules?.modes;
     if (!mod.is_mounted) return modes?.umount ?? "Umount";
-    if (normalizeModuleMode(mod.mode) === "magic") return modes?.magic ?? "Magic";
-    if (normalizeModuleMode(mod.mode) === "kasumi") {
+    const mode = mod.mode;
+    if (mode === "magic") return modes?.magic ?? "Magic";
+    if (mode === "kasumi") {
       return modes?.kasumi ?? "Kasumi";
     }
     return modes?.overlay ?? "OverlayFS";
@@ -134,13 +169,14 @@ export default function ModulesTab() {
 
   function getModeClass(mod: Module) {
     if (!mod.is_mounted) return "mode-ignore";
-    if (normalizeModuleMode(mod.mode) === "magic") return "mode-magic";
-    if (normalizeModuleMode(mod.mode) === "kasumi") return "mode-kasumi";
+    const mode = mod.mode;
+    if (mode === "magic") return "mode-magic";
+    if (mode === "kasumi") return "mode-kasumi";
     return "mode-overlay";
   }
 
   function getEffectiveDefaultMode(mod: Module): MountMode {
-    const mode = normalizeModuleMode(mod.rules.default_mode);
+    const mode = mod.rules.default_mode;
     if (mode === "kasumi" && !kasumiAvailable()) {
       return "ignore";
     }
@@ -151,7 +187,10 @@ export default function ModulesTab() {
     modId: string,
     updateFn: (rules: Module["rules"]) => Module["rules"],
   ) {
-    updateModule(modId, (module) => ({ ...module, rules: updateFn(module.rules) }));
+    updateModule(modId, (module) => ({
+      ...module,
+      rules: updateFn(module.rules),
+    }));
   }
 
   return (
@@ -205,7 +244,7 @@ export default function ModulesTab() {
                 <option value="magic">
                   {uiStore.L.modules?.modes?.short?.magic ?? "Magic"}
                 </option>
-                <Show when={showKasumiStrategy()}>
+                <Show when={ENABLE_KASUMI && showKasumiStrategy()}>
                   <option value="kasumi">
                     {uiStore.L.modules?.modes?.short?.kasumi ?? "Kasumi"}
                   </option>
@@ -268,8 +307,18 @@ export default function ModulesTab() {
                             <span class="version-badge">{mod.version}</span>
                           </div>
                         </div>
-                        <div class={`mode-indicator ${getModeClass(mod)}`}>
-                          {getModeLabel(mod)}
+                        <div class="mode-group">
+                          <div class={`mode-indicator ${getModeClass(mod)}`}>
+                            {getModeLabel(mod)}
+                          </div>
+                          <Show when={mod.mount_error}>
+                            <div
+                              class="error-indicator"
+                              title={mod.mount_error}
+                            >
+                              ERROR
+                            </div>
+                          </Show>
                         </div>
                       </button>
 
@@ -278,6 +327,24 @@ export default function ModulesTab() {
                           <div class="module-body-content">
                             <p class="module-desc">{mod.description}</p>
 
+                            <Show when={mod.mount_error}>
+                              <div class="error-banner">
+                                <svg
+                                  class="error-icon"
+                                  viewBox="0 0 24 24"
+                                  width="16"
+                                  height="16"
+                                >
+                                  <path d={ICONS.bug} fill="currentColor" />
+                                </svg>
+                                <span class="error-text">
+                                  {uiStore.L.modules?.mountError ||
+                                    "Mount Error"}
+                                  : {mod.mount_error}
+                                </span>
+                              </div>
+                            </Show>
+
                             <div class="body-section">
                               <div class="section-label">
                                 {uiStore.L.modules?.defaultMode ?? "Strategy"}
@@ -285,7 +352,9 @@ export default function ModulesTab() {
                               <div class="strategy-selector">
                                 <button
                                   class={`strategy-option ${effectiveDefaultMode() === "overlay" ? "selected" : ""}`}
-                                  onClick={() => updateDefaultMode(mod, "overlay")}
+                                  onClick={() =>
+                                    updateDefaultMode(mod, "overlay")
+                                  }
                                   type="button"
                                 >
                                   <span class="opt-title">
@@ -298,7 +367,9 @@ export default function ModulesTab() {
                                 </button>
                                 <button
                                   class={`strategy-option ${effectiveDefaultMode() === "magic" ? "selected" : ""}`}
-                                  onClick={() => updateDefaultMode(mod, "magic")}
+                                  onClick={() =>
+                                    updateDefaultMode(mod, "magic")
+                                  }
                                   type="button"
                                 >
                                   <span class="opt-title">
@@ -309,10 +380,14 @@ export default function ModulesTab() {
                                     {uiStore.L.modules?.compatTag ?? "Compat"}
                                   </span>
                                 </button>
-                                <Show when={showKasumiStrategy()}>
+                                <Show
+                                  when={ENABLE_KASUMI && showKasumiStrategy()}
+                                >
                                   <button
                                     class={`strategy-option ${effectiveDefaultMode() === "kasumi" ? "selected" : ""}`}
-                                    onClick={() => updateDefaultMode(mod, "kasumi")}
+                                    onClick={() =>
+                                      updateDefaultMode(mod, "kasumi")
+                                    }
                                     disabled={!kasumiAvailable()}
                                     title={
                                       !kasumiAvailable()
@@ -338,7 +413,9 @@ export default function ModulesTab() {
                                 </Show>
                                 <button
                                   class={`strategy-option ${effectiveDefaultMode() === "ignore" ? "selected" : ""}`}
-                                  onClick={() => updateDefaultMode(mod, "ignore")}
+                                  onClick={() =>
+                                    updateDefaultMode(mod, "ignore")
+                                  }
                                   type="button"
                                 >
                                   <span class="opt-title">
@@ -365,6 +442,15 @@ export default function ModulesTab() {
       </div>
 
       <BottomActions>
+        <Show when={hasMountErrors()}>
+          <md-filled-tonal-button
+            onClick={clearMountErrors}
+            disabled={clearingErrors()}
+          >
+            {uiStore.L.modules?.clearMountErrors ?? "Clear Mount Errors"}
+          </md-filled-tonal-button>
+        </Show>
+
         <Show when={canLoadMore()}>
           <md-filled-tonal-button onClick={loadMore}>
             {uiStore.L.modules?.loadMore ?? "Load More"}

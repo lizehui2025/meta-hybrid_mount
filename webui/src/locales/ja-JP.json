@@ -36,8 +36,6 @@
     "moduleDirDesc": "モジュールを保存するディレクトリを設定します",
     "mountSource": "マウントソース",
     "mountSourceDesc": "グローバルマウントソースの名前空間 (例: KSU)",
-    "partitions": "パーティション",
-    "partitionsDesc": "マウントするパーティションを追加",
     "reload": "再読み込み",
     "save": "保存",
     "resetConfig": "設定をリセット",
@@ -66,7 +64,8 @@
     "mode_tmpfsDesc": "RAM ベース、高速な I/O、再起動時にリセットされます。",
     "mode_ext4": "Ext4",
     "mode_ext4Desc": "ループバックイメージ。永続的、RAM を節約できます。",
-    "enableOverlayFallback": "Overlay フォールバックを有効化"
+    "enableOverlayFallback": "Overlay フォールバックを有効化",
+    "daemonStartupMode": "常駐デーモン"
   },
   "modules": {
     "reload": "更新",
@@ -98,7 +97,11 @@
     "disableTag": "無効",
     "nativeTag": "ステルス",
     "unavailableTag": "利用不可",
-    "kasumiUnavailableHint": "Kasumi は有効ですが、現在は利用できません。"
+    "kasumiUnavailableHint": "Kasumi は有効ですが、現在は利用できません。",
+    "mountError": "マウントエラー",
+    "clearMountErrors": "マウントエラーをクリア",
+    "mountErrorsCleared": "マウントエラーをクリアしました",
+    "mountErrorsClearFailed": "マウントエラーのクリアに失敗"
   },
   "kasumi": {
     "title": "Kasumi の動作状態",
@@ -155,6 +158,7 @@
     "userHidePathRequired": "非表示パスは空にできません",
     "stealthUpdated": "Stealth を更新しました",
     "hidexattrUpdated": "HideXattr を更新しました",
+    "selinuxFixUpdated": "SELinux Guard を更新しました",
     "ignoreProtocolUpdated": "プロトコル不一致ポリシーを更新しました",
     "kernelDebugUpdated": "カーネルデバッグを更新しました",
     "kmiOverride": "KMI 上書き",
@@ -163,6 +167,7 @@
     "lastError": "最後のエラー",
     "stealthTitle": "ステルス",
     "hidexattrTitle": "Xattr 非表示",
+    "selinuxFixTitle": "SELinux Guard",
     "ignoreProtocolTitle": "プロトコル不一致を無視",
     "ignoreProtocolHint": "ユーザー空間 API とカーネルプロトコルが完全に一致しなくても、Kasumi の動作を継続します。",
     "lkmUnavailableHint": "Kasumi は有効ですが、カーネルモジュールはまだ読み込まれていません。",

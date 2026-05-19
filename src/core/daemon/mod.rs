@@ -12,14 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::Path;
+mod client;
+pub(crate) mod protocol;
+mod server;
 
-use anyhow::Result;
-
-use crate::core::storage::StorageMode;
-
-pub trait StorageBackend: Send + Sync {
-    fn commit(&mut self, disable_umount: bool) -> Result<()>;
-    fn mount_point(&self) -> &Path;
-    fn mode(&self) -> StorageMode;
-}
+pub(crate) use self::protocol::DaemonCommand;
+pub use self::{client::dispatch, server::serve};

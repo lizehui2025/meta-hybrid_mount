@@ -36,8 +36,6 @@
     "moduleDirDesc": "Imposta la directory in cui sono archiviati i moduli",
     "mountSource": "Sorgente di mount",
     "mountSourceDesc": "Namespace globale della sorgente di mount (es. KSU)",
-    "partitions": "Partizioni",
-    "partitionsDesc": "Aggiungi partizioni da montare",
     "reload": "Ricarica",
     "save": "Salva",
     "resetConfig": "Reimposta configurazione",
@@ -66,7 +64,8 @@
     "mode_tmpfsDesc": "Basato su RAM. I/O piu veloce, si resetta al riavvio.",
     "mode_ext4": "Ext4",
     "mode_ext4Desc": "Immagine loopback. Persistente, risparmia RAM.",
-    "enableOverlayFallback": "Abilita fallback overlay"
+    "enableOverlayFallback": "Abilita fallback overlay",
+    "daemonStartupMode": "Demone persistente"
   },
   "modules": {
     "reload": "Ricarica",
@@ -98,7 +97,11 @@
     "disableTag": "Disabilitato",
     "nativeTag": "Furtivo",
     "unavailableTag": "Non disponibile",
-    "kasumiUnavailableHint": "Kasumi e abilitato, ma al momento non e disponibile."
+    "kasumiUnavailableHint": "Kasumi e abilitato, ma al momento non e disponibile.",
+    "mountError": "Errore di mount",
+    "clearMountErrors": "Cancella errori",
+    "mountErrorsCleared": "Errori cancellati",
+    "mountErrorsClearFailed": "Cancellazione errori fallita"
   },
   "kasumi": {
     "title": "Runtime Kasumi",
@@ -155,6 +158,7 @@
     "userHidePathRequired": "Il percorso da nascondere non puo essere vuoto",
     "stealthUpdated": "Stealth aggiornato",
     "hidexattrUpdated": "HideXattr aggiornato",
+    "selinuxFixUpdated": "SELinux Guard aggiornato",
     "ignoreProtocolUpdated": "Policy di incompatibilita del protocollo aggiornata",
     "kernelDebugUpdated": "Debug kernel aggiornato",
     "kmiOverride": "Override KMI",
@@ -163,6 +167,7 @@
     "lastError": "Ultimo errore",
     "stealthTitle": "Furtivo",
     "hidexattrTitle": "Nascondi xattr",
+    "selinuxFixTitle": "SELinux Guard",
     "ignoreProtocolTitle": "Ignora incompatibilita protocollo",
     "ignoreProtocolHint": "Consente a Kasumi di continuare a funzionare quando l'API userspace e il protocollo kernel non corrispondono del tutto.",
     "lkmUnavailableHint": "Kasumi e abilitato, ma il modulo kernel non e ancora caricato.",

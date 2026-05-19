@@ -213,6 +213,46 @@
   letter-spacing: 0.3px;
 }
 
+.mode-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.error-indicator {
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background-color: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  flex-shrink: 0;
+}
+
+.error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background-color: var(--md-sys-color-error-container);
+  border-radius: var(--radius-md);
+  color: var(--md-sys-color-on-error-container);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.error-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  opacity: 0.8;
+}
+
+.error-text {
+  word-break: break-word;
+}
+
 .mode-overlay {
   background-color: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);

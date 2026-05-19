@@ -22,12 +22,12 @@ use std::{
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "kasumi")]
+use crate::mount::kasumi;
+#[cfg(feature = "control-plane")]
+use crate::sys::fs::xattr;
 use crate::{
-    conf::config::Config,
-    core::ops::executor::ExecutionResult,
-    defs,
-    mount::kasumi,
-    sys::fs::{atomic_write, xattr},
+    conf::config::Config, core::ops::executor::ExecutionResult, defs, sys::fs::atomic_write, utils,
 };
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
@@ -90,6 +90,7 @@ impl MountStatistics {
         self.ignored_entries += 1;
     }
 
+    #[cfg(feature = "control-plane")]
     pub fn success_rate(&self) -> f64 {
         if self.total_mounts == 0 {
             0.0
@@ -153,7 +154,17 @@ pub struct KasumiRuntimeInfo {
     pub mirror_path: PathBuf,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DaemonRuntimeInfo {
+    #[serde(default)]
+    pub alive: bool,
+    #[serde(default)]
+    pub socket_path: String,
+    #[serde(default)]
+    pub last_refresh_ts: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RuntimeState {
     pub timestamp: u64,
     pub pid: u32,
@@ -171,6 +182,7 @@ pub struct RuntimeState {
     pub skip_mount_modules: Vec<String>,
     #[serde(default)]
     pub active_mounts: Vec<String>,
+    #[cfg(feature = "control-plane")]
     #[serde(default)]
     pub tmpfs_xattr_supported: bool,
     #[serde(default)]
@@ -179,6 +191,27 @@ pub struct RuntimeState {
     pub mode_stats: ModuleModeStats,
     #[serde(default)]
     pub kasumi: KasumiRuntimeInfo,
+    #[serde(default)]
+    pub daemon: DaemonRuntimeInfo,
+    #[serde(skip)]
+    cached_status_value: Option<serde_json::Value>,
+}
+
+impl RuntimeState {
+    #[cfg(feature = "control-plane")]
+    pub fn status_value(&mut self) -> serde_json::Result<&serde_json::Value> {
+        if self.cached_status_value.is_none() {
+            self.cached_status_value = Some(serde_json::to_value(&*self)?);
+        }
+        Ok(self
+            .cached_status_value
+            .as_ref()
+            .expect("cached_status_value was just populated above"))
+    }
+
+    fn invalidate_cache(&mut self) {
+        self.cached_status_value = None;
+    }
 }
 
 impl RuntimeState {
@@ -203,6 +236,7 @@ impl RuntimeState {
 
         let pid = std::process::id();
 
+        #[cfg(feature = "control-plane")]
         let tmpfs_xattr_supported = xattr::is_overlay_xattr_supported().unwrap_or(false);
 
         let state = Self {
@@ -217,12 +251,16 @@ impl RuntimeState {
             mount_error_reasons: BTreeMap::new(),
             skip_mount_modules: Vec::new(),
             active_mounts,
+            #[cfg(feature = "control-plane")]
             tmpfs_xattr_supported,
             mount_stats,
             mode_stats,
             kasumi,
+            daemon: DaemonRuntimeInfo::default(),
+            cached_status_value: None,
         };
 
+        #[cfg(feature = "control-plane")]
         crate::scoped_log!(
             debug,
             "runtime_state:new",
@@ -235,18 +273,35 @@ impl RuntimeState {
             state.active_mounts.len(),
             state.tmpfs_xattr_supported
         );
+        #[cfg(not(feature = "control-plane"))]
+        crate::scoped_log!(
+            debug,
+            "runtime_state:new",
+            "complete: storage_mode={}, mount_point={}, overlay_modules={}, magic_modules={}, kasumi_modules={}, active_mounts={}",
+            state.storage_mode,
+            state.mount_point.display(),
+            state.overlay_modules.len(),
+            state.magic_modules.len(),
+            state.kasumi_modules.len(),
+            state.active_mounts.len()
+        );
 
         state
     }
 
     pub fn save(&self) -> Result<()> {
+        let json = serde_json::to_string_pretty(self)?;
+        if let Ok(existing) = std::fs::read_to_string(defs::STATE_FILE)
+            && existing == json
+        {
+            return Ok(());
+        }
         crate::scoped_log!(
             debug,
             "runtime_state:save",
             "start: path={}",
             defs::STATE_FILE
         );
-        let json = serde_json::to_string_pretty(self)?;
         atomic_write(defs::STATE_FILE, json.as_bytes())?;
         crate::scoped_log!(
             debug,
@@ -255,6 +310,29 @@ impl RuntimeState {
             defs::STATE_FILE,
             json.len()
         );
+        if self.mount_error_modules.is_empty() {
+            crate::scoped_log!(
+                info,
+                "runtime_state:summary",
+                "saved: storage_mode={}, active_mounts={}, kasumi_modules={}, mount_errors=0, daemon_alive={}",
+                self.storage_mode,
+                self.active_mounts.join(","),
+                self.kasumi_modules.join(","),
+                self.daemon.alive
+            );
+        } else {
+            crate::scoped_log!(
+                warn,
+                "runtime_state:summary",
+                "saved: storage_mode={}, active_mounts={}, kasumi_modules={}, mount_errors={}, reasons={:?}, daemon_alive={}",
+                self.storage_mode,
+                self.active_mounts.join(","),
+                self.kasumi_modules.join(","),
+                self.mount_error_modules.join(","),
+                self.mount_error_reasons,
+                self.daemon.alive
+            );
+        }
         Ok(())
     }
 
@@ -288,7 +366,13 @@ impl RuntimeState {
             }
         };
 
+        #[cfg(feature = "kasumi")]
         let kasumi = kasumi::collect_runtime_info(config);
+        #[cfg(not(feature = "kasumi"))]
+        let kasumi = {
+            let _ = config;
+            KasumiRuntimeInfo::default()
+        };
         let mut state = Self::new(
             storage_mode.as_str().to_string(),
             mount_point.to_path_buf(),
@@ -304,6 +388,8 @@ impl RuntimeState {
         state.mount_error_reasons = previous_state.mount_error_reasons;
         clear_recovered_mount_errors(&mut state);
         state.skip_mount_modules = collect_skip_mount_modules(config);
+        state.daemon = previous_state.daemon;
+        state.invalidate_cache();
 
         crate::scoped_log!(
             debug,
@@ -324,6 +410,18 @@ impl RuntimeState {
             .chain(self.kasumi_modules.iter())
             .map(|s| s.as_str())
             .collect()
+    }
+
+    #[cfg(feature = "control-plane")]
+    pub fn set_daemon_state(&mut self, alive: bool, socket_path: impl Into<String>) {
+        let refreshed_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.daemon.alive = alive;
+        self.daemon.socket_path = socket_path.into();
+        self.daemon.last_refresh_ts = refreshed_at;
+        self.invalidate_cache();
     }
 
     pub fn load() -> Result<Self> {
@@ -406,7 +504,7 @@ fn collect_skip_mount_modules(config: &Config) -> Vec<String> {
         if crate::core::inventory::is_reserved_module_dir(&id) {
             continue;
         }
-        if module_dir.join(defs::SKIP_MOUNT_FILE_NAME).exists() {
+        if utils::dir_contains_entry_case_insensitive(&module_dir, defs::SKIP_MOUNT_FILE_NAME) {
             modules.push(id);
         }
     }

@@ -1,6 +1,8 @@
 import { createSignal, createRoot } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { API } from "../api";
+import type { InitPayload } from "../api/contracts";
+import { normalizeConfig } from "../api/codec/configCodec";
 import { DEFAULT_CONFIG } from "../constants";
 import { uiStore } from "./uiStore";
 import type { AppConfig } from "../types";
@@ -8,26 +10,6 @@ import type { AppConfig } from "../types";
 interface SaveConfigOptions {
   showSuccess?: boolean;
   showError?: boolean;
-}
-
-function normalizeConfig(
-  nextConfig: Partial<AppConfig> | null | undefined,
-): AppConfig {
-  return {
-    moduledir: nextConfig?.moduledir ?? DEFAULT_CONFIG.moduledir,
-    mountsource: nextConfig?.mountsource ?? DEFAULT_CONFIG.mountsource,
-    partitions: Array.isArray(nextConfig?.partitions)
-      ? [...nextConfig.partitions]
-      : [...DEFAULT_CONFIG.partitions],
-    overlay_mode: nextConfig?.overlay_mode ?? DEFAULT_CONFIG.overlay_mode,
-    disable_umount: nextConfig?.disable_umount ?? DEFAULT_CONFIG.disable_umount,
-    enable_overlay_fallback:
-      nextConfig?.enable_overlay_fallback ??
-      DEFAULT_CONFIG.enable_overlay_fallback,
-    default_mode: nextConfig?.default_mode ?? DEFAULT_CONFIG.default_mode,
-    kasumi: { ...DEFAULT_CONFIG.kasumi, ...(nextConfig?.kasumi ?? {}) },
-    rules: { ...DEFAULT_CONFIG.rules, ...(nextConfig?.rules ?? {}) },
-  };
 }
 
 const createConfigStore = () => {
@@ -61,6 +43,16 @@ const createConfigStore = () => {
     })();
 
     return pendingLoad;
+  }
+
+  function loadFromInit(payload: InitPayload) {
+    if (payload.config != null) {
+      const normalized = normalizeConfig(payload.config);
+      setConfigStore(reconcile(normalized));
+      hasLoaded = true;
+    } else {
+      console.warn("configStore: init payload missing config");
+    }
   }
 
   function ensureConfigLoaded() {
@@ -143,6 +135,7 @@ const createConfigStore = () => {
     ensureConfigLoaded,
     invalidate,
     loadConfig,
+    loadFromInit,
     saveConfig,
     resetConfig,
   };

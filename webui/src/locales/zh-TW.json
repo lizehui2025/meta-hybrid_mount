@@ -36,8 +36,6 @@
     "moduleDirDesc": "設定模組儲存目錄",
     "mountSource": "掛載來源",
     "mountSourceDesc": "全域掛載來源命名空間 (例如 KSU)",
-    "partitions": "額外分區",
-    "partitionsDesc": "新增要掛載的分區",
     "reload": "重載",
     "save": "儲存",
     "resetConfig": "重置設定檔",
@@ -66,7 +64,8 @@
     "mode_tmpfsDesc": "基於 RAM，I/O 最快，重啟後重置。",
     "mode_ext4": "Ext4",
     "mode_ext4Desc": "Loopback 映像。可持久保存，節省 RAM。",
-    "enableOverlayFallback": "允許 Overlay 回退"
+    "enableOverlayFallback": "允許 Overlay 回退",
+    "daemonStartupMode": "持久化守護行程"
   },
   "modules": {
     "reload": "重新整理",
@@ -98,7 +97,11 @@
     "disableTag": "停用",
     "nativeTag": "隱身",
     "unavailableTag": "不可用",
-    "kasumiUnavailableHint": "Kasumi 已啟用，但目前不可用。"
+    "kasumiUnavailableHint": "Kasumi 已啟用，但目前不可用。",
+    "mountError": "掛載錯誤",
+    "clearMountErrors": "清除掛載錯誤",
+    "mountErrorsCleared": "掛載錯誤已清除",
+    "mountErrorsClearFailed": "清除掛載錯誤失敗"
   },
   "kasumi": {
     "title": "Kasumi 工作狀態",
@@ -155,6 +158,7 @@
     "userHidePathRequired": "隱藏路徑不可為空",
     "stealthUpdated": "Stealth 已更新",
     "hidexattrUpdated": "HideXattr 已更新",
+    "selinuxFixUpdated": "SELinux 守護已更新",
     "ignoreProtocolUpdated": "協定不匹配策略已更新",
     "kernelDebugUpdated": "核心除錯已更新",
     "kmiOverride": "KMI 覆寫",
@@ -163,6 +167,7 @@
     "lastError": "最後錯誤",
     "stealthTitle": "隱身",
     "hidexattrTitle": "隱藏 Xattr",
+    "selinuxFixTitle": "SELinux 守護",
     "ignoreProtocolTitle": "忽略協定不匹配",
     "ignoreProtocolHint": "當 userspace API 與核心協定未完全匹配時，仍允許 Kasumi 繼續運作。",
     "lkmUnavailableHint": "Kasumi 已啟用，但核心模組尚未載入。",

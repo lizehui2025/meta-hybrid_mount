@@ -15,7 +15,7 @@
 mod utils;
 
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     error::Error as StdError,
     fmt, fs,
     path::{Path, PathBuf},
@@ -26,9 +26,11 @@ use std::{ffi::CStr, ops::BitOr};
 use anyhow::{Context, Result, bail};
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use rustix::mount::{
-    MountFlags, MountPropagationFlags, UnmountFlags, mount, mount_bind, mount_change, mount_move,
+    MountFlags, MountPropagationFlags, UnmountFlags, mount, mount_change, mount_move,
     mount_remount, unmount,
 };
+
+use self::utils::mount_bind;
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 #[derive(Clone, Copy)]
@@ -87,15 +89,6 @@ where
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
-fn mount_bind<P, Q>(_source: P, _target: Q) -> Result<()>
-where
-    P: AsRef<Path>,
-    Q: AsRef<Path>,
-{
-    bail!("bind mount is only supported on linux/android")
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn mount_change<P>(_target: P, _flags: MountPropagationFlags) -> Result<()>
 where
     P: AsRef<Path>,
@@ -138,6 +131,18 @@ use crate::{
     },
     sys::fs::ensure_dir_exists,
 };
+
+fn try_remount_readonly(mount_target: &Path, log_path: &Path) {
+    if let Err(e) = mount_remount(mount_target, MountFlags::RDONLY | MountFlags::BIND, "") {
+        crate::scoped_log!(
+            warn,
+            "magic",
+            "remount readonly failed: path={}, error={:#?}",
+            log_path.display(),
+            e
+        );
+    }
+}
 
 #[derive(Debug)]
 pub struct MagicMountModuleFailure {
@@ -205,12 +210,20 @@ fn wrap_with_module_context(err: anyhow::Error, node: &Node) -> anyhow::Error {
 struct MountContext {
     stats: MountStatistics,
     failed_module_ids: HashSet<String>,
+    symlinks_by_module: BTreeMap<String, usize>,
 }
 
 impl MountContext {
     fn record_failed_node(&mut self, node: &Node) {
         self.stats.record_failed();
         self.failed_module_ids.extend(infer_module_ids(node));
+    }
+
+    fn record_symlink(&mut self, module_path: &Path) {
+        self.stats.record_symlink();
+        let module_id =
+            crate::utils::extract_module_id(module_path).unwrap_or_else(|| "<unknown>".to_string());
+        *self.symlinks_by_module.entry(module_id).or_default() += 1;
     }
 }
 
@@ -267,13 +280,6 @@ impl MagicMount {
 impl MagicMount {
     fn symlink(&self, context: &mut MountContext) -> Result<()> {
         if let Some(module_path) = &self.node.module_path {
-            crate::scoped_log!(
-                debug,
-                "magic",
-                "mount symlink: src={}, dst={}",
-                module_path.display(),
-                self.work_dir_path.display()
-            );
             clone_symlink(module_path, &self.work_dir_path).with_context(|| {
                 format!(
                     "create module symlink {} -> {}",
@@ -281,7 +287,7 @@ impl MagicMount {
                     self.work_dir_path.display(),
                 )
             })?;
-            context.stats.record_symlink();
+            context.record_symlink(module_path);
             Ok(())
         } else {
             bail!("cannot mount root symlink {}!", self.path.display());
@@ -321,16 +327,7 @@ impl MagicMount {
             let _ = send_umountable(target);
         }
 
-        if let Err(e) = mount_remount(target, MountFlags::RDONLY | MountFlags::BIND, "") {
-            crate::scoped_log!(
-                warn,
-                "magic",
-                "remount readonly failed: path={}, error={:#?}",
-                target.display(),
-                e
-            );
-        }
-
+        try_remount_readonly(target, target);
         context.stats.record_file();
         Ok(())
     }
@@ -444,19 +441,7 @@ impl MagicMount {
                 self.path.display()
             );
 
-            if let Err(e) = mount_remount(
-                &self.work_dir_path,
-                MountFlags::RDONLY | MountFlags::BIND,
-                "",
-            ) {
-                crate::scoped_log!(
-                    warn,
-                    "magic",
-                    "remount readonly failed: path={}, error={:#?}",
-                    self.path.display(),
-                    e
-                );
-            }
+            try_remount_readonly(&self.work_dir_path, &self.path);
             mount_move(&self.work_dir_path, &self.path).with_context(|| {
                 format!(
                     "moving tmpfs {} -> {}",
@@ -604,6 +589,16 @@ where
             );
         }
         fs::remove_dir(tmp_dir).ok();
+
+        for (module_id, count) in &context.symlinks_by_module {
+            crate::scoped_log!(
+                debug,
+                "magic",
+                "symlink summary: module={}, mounted_symlinks={}",
+                module_id,
+                count
+            );
+        }
 
         crate::scoped_log!(
             info,

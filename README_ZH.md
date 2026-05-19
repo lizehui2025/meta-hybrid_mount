@@ -1,83 +1,204 @@
 # Hybrid Mount
 
-<img src="https://raw.githubusercontent.com/Hybrid-Mount/meta-hybrid_mount/master/icon.svg" align="right" width="120" />
+<img src="https://raw.githubusercontent.com/Hybrid-Mount/meta-hybrid_mount/main/icon.svg" align="right" width="120" />
 
 ![Language](https://img.shields.io/badge/Language-Rust-orange?style=flat-square&logo=rust)
 ![Platform](https://img.shields.io/badge/Platform-Android-green?style=flat-square&logo=android)
 ![License](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/Version-4.0.5-8A2BE2?style=flat-square)
 
-Hybrid Mount 是面向 **KernelSU** 与 **APatch** 的挂载编排元模块。  
-它现在支持三种挂载方式，把模块文件注入 Android 分区：
+Hybrid Mount 是面向 **KernelSU** 与 **APatch** 的挂载编排元模块。
+通过统一的策略引擎，将模块文件合并到 Android 分区，并支持三种挂载后端：
 
-- **OverlayFS**：兼容优先的分层挂载。
-- **Magic Mount（bind mount）**：直接路径绑定或回退方案。
-- **Kasumi**：用于显式 `kasumi` 路由，以及依赖 Kasumi runtime 的 hide/spoof 能力。
+- **OverlayFS** — 分层挂载，兼容性优先。
+- **Magic Mount** — bind mount，适合直接路径替换或回退场景。
+- **Kasumi** — LKM 内核驱动，提供运行时 hide/spoof/stealth 能力。
 
-整体目标是：启动行为可预测、冲突可观测、策略可配置。
+内置 **SolidJS WebUI**，支持图形化管理、实时状态监控和配置编辑。
 
-**[🇺🇸 English](README.md)**
+发布包现在分为三个版本 — 详见 [构建版本](#构建版本) 对比。除非另有说明，下面内容默认描述的是 `full` 版本。
+
+**[English](README.md)** &nbsp; **[简体中文](README_ZH.md)** &nbsp; **[繁體中文](README_ZH_TW.md)** &nbsp; **[日本語](README_JP.md)** &nbsp; **[Español](README_ES.md)** &nbsp; **[Italiano](README_IT.md)** &nbsp; **[Русский](README_RU.md)** &nbsp; **[Українська](README_UK.md)** &nbsp; **[Tiếng Việt](README_VI.md)**
 
 ---
 
 ## 目录
 
-- [设计目标](#设计目标)
+- [特性](#特性)
+- [构建版本](#构建版本)
+- [快速开始](#快速开始)
 - [挂载方式](#挂载方式)
-- [架构说明](#架构说明)
-- [仓库结构](#仓库结构)
+- [WebUI](#webui)
+- [语言支持](#语言支持)
 - [配置说明](#配置说明)
 - [Kasumi](#kasumi)
-- [策略行为矩阵](#策略行为矩阵)
+- [策略参考](#策略参考)
 - [CLI 命令](#cli-命令)
+- [架构说明](#架构说明)
 - [构建方式](#构建方式)
 - [运维建议](#运维建议)
 - [开源协议](#开源协议)
 
 ---
 
-## 设计目标
+## 构建版本
 
-1. **兼容优先**：适配不同 Android 内核环境。
-2. **可确定性**：通过显式规划减少“偶现挂载异常”。
-3. **运行安全性**：配置和恢复流程尽可能保守。
-4. **自动化友好**：CLI 输出可直接给 WebUI/脚本消费。
+Hybrid Mount 发布为三种构建版本（flavor），分别面向不同使用场景：
+
+| 版本 | 二进制 | WebUI | 守护进程/CLI | Kasumi LKM | 适用场景 |
+|------|--------|-------|-------------|------------|----------|
+| **Full** | 是 | 是 | 是 | 是 | 需要 Kasumi 路由或 hide/spoof 能力的用户。 |
+| **Lite** | 是 | 是 | 是 | 否 | 需要 WebUI 和完整策略引擎，但不需要 LKM 级 stealth 功能的用户。 |
+| **Nano** | 是 | 否 | 否 | 否 | 极简主义用户，仅需通过配置文件控制挂载，无需运行时守护进程。 |
+
+### Full
+
+`full` 版本包含所有受支持的挂载后端（OverlayFS、Magic Mount、Kasumi）、SolidJS WebUI、Unix socket 守护进程及 HTTP/SSE、CLI，以及 Kasumi LKM 资产。需要 Kasumi 路由或辅助 hide/spoof 能力时使用 Full。
+
+### Lite
+
+`lite` 版本移除了 Kasumi LKM 及所有 Kasumi 相关功能（hide、spoof、stealth、kstat 规则、uname 伪装等），但保留了 WebUI、守护进程、CLI 以及 OverlayFS 和 Magic Mount 两种后端。选择 Lite 的理由：
+
+- 你的内核不支持加载外部 LKM。
+- 你不需要运行时 hide/spoof 能力。
+- 你想要更小的下载体积，同时保留 WebUI 和守护进程管理界面。
+
+Lite 构建使用 `control-plane` 特性集（不含 `kasumi`）。WebUI 中的 Kasumi 面板会自动隐藏。
+
+### Nano
+
+`nano` 版本是**纯配置文件驱动**的构建。它移除了 WebUI、守护进程、CLI 以及所有控制面基础设施，仅保留一个精简二进制文件，该文件读取 `config.toml`、生成挂载计划、执行挂载，然后退出。核心特征：
+
+- **无运行时守护进程** — 无后台进程、无 socket、无 WebUI、无 CLI 子命令。
+- **无 WebUI** — 包中移除了 `webroot/`、`launcher.png` 和 `service.sh` 资源。
+- **纯挂载操作** — 二进制在启动时运行，按照配置完成所有挂载后终止。
+- **默认模式为 `magic`** — Nano 的预置配置中 `default_mode = "magic"`，在没有守护进程管理 ext4 镜像时优先使用 bind mount。
+- **模块模式标记** — 安装时通过音量键选择后，会在每个受管理模块根目录写入空的 `overlay` 或 `magic` 标记文件，Nano 运行时直接读取它们，而不再依赖白名单。标记文件名不区分大小写。
+- **无常驻 Hybrid Mount 进程** — 启动阶段挂载完成后，Nano 二进制会退出。
+
+选择 Nano，如果你想要可预测、无守护进程的挂载编排，并希望减少运行时常驻组件。
+
+### 功能矩阵
+
+| 功能 | Full | Lite | Nano |
+|------|------|------|------|
+| OverlayFS 后端 | 是 | 是 | 标记驱动 |
+| Magic Mount 后端 | 是 | 是 | 是（默认） |
+| Kasumi 后端 | 是 | 否 | 否 |
+| WebUI | 是 | 是 | 否 |
+| CLI（`hybrid-mount` 子命令） | 是 | 是 | 否 |
+| 守护进程（Unix + TCP/SSE） | 是 | 是 | 否 |
+| 配置缓存与运行时生效 | 是 | 是 | 否 |
+| Kasumi hide/spoof/stealth | 是 | 否 | 否 |
+| LKM 自动加载 | 是 | 否 | 否 |
+| ZIP 体积（约） | ~4 MB | ~2 MB | ~1 MB |
+
+## 特性
+
+- **三种后端，统一策略引擎** — 支持按路径粒度分配 OverlayFS、Magic Mount 或 Kasumi。
+- **确定性规划** — 冲突在计划阶段检出，而非启动时随机出现。
+- **内置 WebUI** — 通过浏览器或 WebView 管理模块、编辑配置、监控运行时状态、在 full 版本中控制 Kasumi 特性。
+- **Kasumi 运行时集成** — LKM 自动加载、mirror 路由、mount 隐藏、maps/statfs 伪装、UID 隐藏、uname 伪装、kstat 规则。
+- **配置缓存** — 运行时配置缓存，支持增量补丁和即时生效。
+- **恢复友好** — 残留运行时文件自动清理；配置错误时可通过 `api config-reset` 重置。
+- **自动化友好** — 基于 Unix socket 的 JSON 守护进程协议 + HTTP API，便于脚本和外部控制器调用。
+
+---
+
+## 快速开始
+
+### 安装
+
+1. 在设备上安装 [KernelSU](https://kernelsu.org/) 或 [APatch](https://apatch.dev/)。
+2. 从 [GitHub Releases](https://github.com/Hybrid-Mount/meta-hybrid_mount/releases) 下载对应的 Hybrid Mount `full`、`lite` 或 `nano` 版本 ZIP。
+3. 通过 Root 管理器的模块安装器刷入 ZIP。
+4. 重启设备。Hybrid Mount 将自动检测运行环境并应用默认 overlay 策略。
+
+### 安装后
+
+```bash
+# 查看运行时状态
+hybrid-mount daemon status
+
+# 列出已检测到的模块
+hybrid-mount api modules-list
+```
+
+要访问 WebUI（Full/Lite 版本），打开你的 Root 管理器应用（KernelSU 或 APatch），在模块列表中找到 Hybrid Mount 并点击 — 管理器会在内嵌 WebView 中启动 WebUI。
+
+### 更改模块的挂载方式
+
+```toml
+# /data/adb/hybrid-mount/config.toml
+[rules.my_module]
+default_mode = "magic"
+
+[rules.my_module.paths]
+"system/bin/problematic_binary" = "ignore"
+```
+
+---
 
 ## 挂载方式
 
-Hybrid Mount 当前支持三种后端策略：
+| 模式 | 后端 | 适用场景 |
+|------|------|----------|
+| `overlay` | OverlayFS | 无冲突地新增或替换文件的模块。默认模式。 |
+| `magic` | Bind mount | 需要逐文件直接替换的模块；OverlayFS 不可用时的回退方案。 |
+| `kasumi` | Kasumi LKM | 需要显式 mirror 路由或运行时 hide/spoof 能力的模块。 |
+| `ignore` | — | 排除特定路径，不进行任何挂载处理。 |
 
-- `overlay`：适合可安全合并的模块路径，走 OverlayFS。
-- `magic`：适合直接替换或回退场景，走 Magic Mount bind mount。
-- `kasumi`：模块或路径显式指定为 `kasumi` 时，交给 Kasumi mirror/runtime 处理。
+### OverlayFS 存储模式
 
-## 架构说明
+OverlayFS 后端支持两种 upper/work 层存储策略：
 
-`hybrid-mount` 启动后主要流程如下：
+- `ext4`（默认）— 创建 ext4 磁盘镜像。重启后持久保留，支持 xattr。
+- `tmpfs` — 使用 tmpfs 挂载。易失性、更轻量，但重启后丢失。
 
-1. 加载配置（文件 + CLI 覆盖）。
-2. 扫描模块目录并构建清单。
-3. 生成执行计划（overlay/magic/kasumi/ignore）。
-4. 执行挂载并记录运行状态。
-5. 按需输出冲突与诊断报告。
-
-关键模块：
-
-- `src/conf`：配置模型、加载器、CLI 处理。
-- `src/core/inventory`：模块扫描与数据建模。
-- `src/core/ops`：计划生成、执行与同步。
-- `src/mount`：OverlayFS、Magic Mount 与 Kasumi 后端。
-- `src/sys`：底层文件系统与挂载接口。
-
-## 仓库结构
-
-```text
-.
-├─ src/                 # 守护进程与运行时逻辑
-├─ module/              # 模块脚本与打包资源
-├─ xtask/               # 构建/发布自动化入口
-├─ Cargo.toml           # workspace 与主 crate 配置
-└─ README*.md           # 中英文文档
+```toml
+overlay_mode = "ext4"
 ```
+
+### 回退行为
+
+当 `enable_overlay_fallback = true` 时，计划走 OverlayFS 但无法挂载的模块（内核不支持 overlay）会自动以 Magic Mount 重试。这可减少不稳定内核上的启动失败概率。
+
+---
+
+## WebUI
+
+Hybrid Mount 内置 **基于 SolidJS 的 WebUI**，由守护进程通过本地 TCP socket（HTTP/SSE）提供服务。CLI 与自动化客户端通过 Unix socket 通信。守护进程启动时会将访问 URL 打印到 logcat。
+
+WebUI 设计为直接从你的 **Root 管理器应用**（KernelSU 或 APatch 管理器）中打开 — 点击模块条目，管理器会在内嵌 WebView 中启动 WebUI。无需在设备上额外安装浏览器。
+
+### 功能
+
+- **状态面板** — 实时挂载统计、活跃分区、存储模式、守护进程健康状态。
+- **模块管理** — 列出所有已检测模块及其生效的挂载方式；交互式修改模块策略。
+- **配置编辑器** — 完整的 config.toml 编辑，带校验，支持逐模块路径规则配置。
+- **Kasumi 控制面板** — LKM 状态、规则列表、特性开关、uname 配置、maps/kstat 规则管理（仅 Full 版本）。
+
+### 语言支持
+
+WebUI 目前提供以下语言：
+
+- 英语 (`en-US`，默认)
+- 西班牙语 (`es-ES`)
+- 意大利语 (`it-IT`)
+- 日语 (`ja-JP`)
+- 俄语 (`ru-RU`)
+- 乌克兰语 (`uk-UA`)
+- 越南语 (`vi-VN`)
+- 简体中文 (`zh-CN`)
+- 繁體中文 (`zh-TW`)
+
+README 文档提供 [English](README.md)、[简体中文](README_ZH.md)、[繁體中文](README_ZH_TW.md)、[日本語](README_JP.md)、[Español](README_ES.md)、[Italiano](README_IT.md)、[Русский](README_RU.md)、[Українська](README_UK.md) 和 [Tiếng Việt](README_VI.md) 版本。
+
+### 访问方式
+
+WebUI 运行在 `http://127.0.0.1:<随机端口>`，使用加密访问令牌。守护进程管理整个生命周期，无需额外的 Web 服务器。在设备上通过 Root 管理器的 WebView 直接打开；远程访问可通过 ADB 端口转发。
+
+---
 
 ## 配置说明
 
@@ -88,143 +209,152 @@ Hybrid Mount 当前支持三种后端策略：
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `moduledir` | string | `/data/adb/modules` | 模块目录。 |
-| `mountsource` | string | 自动检测 | 运行来源标识（如 `KSU`、`APatch`）。 |
-| `partitions` | list\|csv string | `[]` | 额外受管分区。 |
-| `overlay_mode` | `ext4` \| `tmpfs` | `ext4` | Overlay 上层存储模式。 |
-| `disable_umount` | bool | `false` | 跳过 umount（仅调试建议使用）。 |
-| `enable_overlay_fallback` | bool | `false` | 当 overlayfs 不可用时，允许将 overlay 计划模块回退到 Magic Mount。 |
-| `default_mode` | `overlay` \| `magic` \| `kasumi` | `overlay` | 全局默认策略。 |
-| `rules` | map | `{}` | 按模块 + 路径细粒度策略。 |
+| `mountsource` | string | 自动检测 | 运行来源标识（`KSU`、`APatch`）。 |
+| `overlay_mode` | `ext4` \| `tmpfs` | `ext4` | Overlay upper/work 存储模式。 |
+| `disable_umount` | bool | `false` | 跳过 umount（仅调试使用）。 |
+| `enable_overlay_fallback` | bool | `false` | OverlayFS 不可用时，将 overlay 模块回退到 Magic Mount。 |
+| `default_mode` | `overlay` \| `magic` \| `kasumi` | `overlay` | 全局默认挂载策略。 |
+| `daemon_startup_mode` | `on-demand` \| `persistent` | `on-demand` | 守护进程启动模式。 |
+| `rules` | map | `{}` | 按模块和路径的细粒度挂载策略。 |
 
 ### 示例
 
 ```toml
 moduledir = "/data/adb/modules"
-mountsource = "KSU"
-partitions = ["system", "vendor"]
 overlay_mode = "ext4"
-disable_umount = false
-enable_overlay_fallback = false
+enable_overlay_fallback = true
 default_mode = "overlay"
+daemon_startup_mode = "on-demand"
 
-[rules.my_module]
+[rules.viper4android]
 default_mode = "magic"
 
-[rules.my_module.paths]
-"system/bin/tool" = "overlay"
-"vendor/lib64/libfoo.so" = "ignore"
+[rules.viper4android.paths]
+"system/etc/audio_policy.conf" = "overlay"
+
+[rules.sensitive_module]
+default_mode = "kasumi"
+
+[rules.sensitive_module.paths]
+"system/bin/helper" = "kasumi"
+"system/etc/placeholder" = "ignore"
 ```
+
+---
 
 ## Kasumi
 
-`Kasumi` 是 Hybrid Mount 的第三种挂载后端。它由内核/LKM 提供支持，既可用于显式的 `kasumi` 路由，也承担 Kasumi 专属的运行时 hide/spoof 能力。
+Kasumi 是 **LKM 内核驱动**后端。除挂载路由外，还提供一系列运行时 hide 和 spoof 能力。
 
-它在项目里主要承担两类工作：
+### 启用条件
 
-- `mode = "kasumi"` 的挂载映射：把模块或路径解析到 Kasumi mirror 树中的内容
-- 额外运行时特性：stealth/hide-xattr、mount hide、`/proc/<pid>/maps` 伪装、`statfs` 伪装、UID 隐藏、uname/cmdline 伪装，以及按目标生效的 kstat 伪装规则
+`kasumi.enabled = true` 仅使后端可用。Hybrid Mount 在满足以下条件之一时才会实际启用 Kasumi 运行时：
 
-### 什么时候会真正启用运行时
-
-`kasumi.enabled = true` 只是允许使用 Kasumi。Hybrid Mount 只有在满足下面任一条件时，才会真正把 Kasumi runtime 打开：
-
-- 生成出来的挂载计划中存在至少一个 Kasumi 模块或路径
-- 配置了任一辅助特性：`enable_hidexattr`、`enable_mount_hide`、`enable_maps_spoof`、`enable_statfs_spoof`、`hide_uids`、`cmdline_value`、`uname*`、`maps_rules`、`kstat_rules`，或持久化的 user hide 规则
-
-几个和实际行为强相关的细节：
-
-- `enable_hidexattr` 是兼容模式总开关，实际会一并启用 `stealth`、`mount_hide`、`maps_spoof`、`statfs_spoof`
-- `mount_hide.path_pattern` 与 `statfs_spoof.{path,spoof_f_type}` 本身也会让对应特性被判定为启用
-- CLI 里执行 disable 时，现在会同步清空这些结构化附属字段，避免“明明关了但因为残留参数又被判定为开启”的情况
+- 生成的挂载计划中包含 Kasumi 管理的模块或路径。
+- 配置了任一辅助特性（hidexattr、mount hide、maps spoof、statfs spoof、UID 隐藏、uname 伪装、cmdline 替换、kstat 规则或用户 hide 规则）。
 
 ### 关键配置项
 
 | 字段 | 作用 |
 | --- | --- |
 | `kasumi.enabled` | Kasumi 集成总开关。 |
-| `kasumi.lkm_autoload` | 启动时是否尝试自动加载 Kasumi LKM。 |
-| `kasumi.lkm_dir` / `kasumi.lkm_kmi_override` | LKM 搜索目录与可选 KMI 覆盖。 |
-| `kasumi.mirror_path` | Kasumi 规则使用的 mirror 根目录，默认 `/dev/kasumi_mirror`。 |
-| `kasumi.enable_kernel_debug` | 打开内核侧 debug 输出。 |
-| `kasumi.enable_stealth` | 显式启用 stealth。 |
-| `kasumi.enable_hidexattr` | 兼容模式总开关，会联动多项 hide/spoof 能力。 |
-| `kasumi.enable_mount_hide` / `kasumi.mount_hide.path_pattern` | 全局或按路径模式启用 mount hide。 |
-| `kasumi.enable_maps_spoof` / `kasumi.maps_rules` | 启用 maps spoof，并安装 inode/device 映射规则。 |
-| `kasumi.enable_statfs_spoof` / `kasumi.statfs_spoof.*` | 启用通用或按路径生效的 `statfs` 伪装。 |
-| `kasumi.hide_uids` | 配置需要隐藏的 UID 集合。 |
-| `kasumi.uname.*` | 结构化 uname 伪装配置。 |
-| `kasumi.cmdline_value` | 替换内核 cmdline 内容。 |
-| `kasumi.kstat_rules` | 按目标应用的 stat 元数据伪装规则。 |
-
-### 示例
-
-```toml
-[kasumi]
-enabled = true
-lkm_autoload = true
-mirror_path = "/dev/kasumi_mirror"
-enable_mount_hide = true
-
-[rules.my_module]
-default_mode = "kasumi"
-
-[rules.my_module.paths]
-"system/bin/su" = "kasumi"
-```
+| `kasumi.lkm_autoload` | 启动时自动加载 Kasumi LKM。 |
+| `kasumi.lkm_dir` | LKM 搜索目录。 |
+| `kasumi.lkm_kmi_override` | 可选的 KMI 版本覆盖，用于 LKM 匹配。 |
+| `kasumi.mirror_path` | Kasumi 规则使用的 mirror 根目录（默认 `/dev/kasumi_mirror`）。 |
+| `kasumi.enable_kernel_debug` | 开启内核侧调试日志。 |
+| `kasumi.enable_stealth` | 显式启用 stealth 模式。 |
+| `kasumi.enable_hidexattr` | 兼容模式总开关，联动启用 stealth、mount hide、maps spoof、statfs spoof。 |
+| `kasumi.enable_mount_hide` | 全局或按路径模式隐藏挂载点。 |
+| `kasumi.mount_hide.path_pattern` | 挂载隐藏的路径匹配模式。 |
+| `kasumi.enable_maps_spoof` | 启用 `/proc/<pid>/maps` 伪装。 |
+| `kasumi.maps_rules` | 按 inode/device 的 maps 重写规则。 |
+| `kasumi.enable_statfs_spoof` | 启用 `statfs` 伪装。 |
+| `kasumi.statfs_spoof.path` / `.spoof_f_type` | 按路径的 statfs 伪装配置。 |
+| `kasumi.hide_uids` | 对 Kasumi 查询隐藏的 UID 集合。 |
+| `kasumi.uname_mode` | Uname 伪装模式：`scoped`（进程级）或 `global`（全局）。 |
+| `kasumi.uname.*` | 结构化 uname 伪装（sysname、nodename、release、version、machine、domainname）。 |
+| `kasumi.cmdline_value` | 替换 `/proc/cmdline` 内容。 |
+| `kasumi.kstat_rules` | 按目标的 stat 元数据伪装规则。 |
 
 ### 常用命令
 
 ```bash
-# 查看运行时/LKM 状态
+# 状态与诊断
 hybrid-mount kasumi status
 hybrid-mount kasumi version
 hybrid-mount kasumi features
+hybrid-mount kasumi hooks
+hybrid-mount kasumi list          # 列出活跃规则
 hybrid-mount lkm status
 
-# 配置并实时同步常见特性
-hybrid-mount kasumi enable
-hybrid-mount kasumi disable
-hybrid-mount kasumi mount-hide enable --path-pattern /dev/kasumi_mirror
-hybrid-mount kasumi statfs-spoof enable --path /system --f-type 0x794c7630
-hybrid-mount kasumi maps add --target-ino 1 --target-dev 2 --spoofed-ino 3 --spoofed-dev 4 --path /dev/kasumi_mirror/system/bin/sh
-hybrid-mount kasumi kstat upsert --target-ino 11 --target-path /system/bin/app_process64 --spoofed-ino 22 --spoofed-dev 33
+# 运行时控制
+hybrid-mount kasumi apply-config-runtime
+hybrid-mount kasumi clear
+hybrid-mount kasumi release-connection
+hybrid-mount kasumi invalidate-cache
+hybrid-mount kasumi fix-mounts
+
+# Uname 伪装（进程级或全局）
+hybrid-mount kasumi set-uname --mode scoped <release> <version>
+hybrid-mount kasumi clear-uname --mode scoped
+hybrid-mount kasumi restore-uname-global
+
+# 规则管理
+hybrid-mount kasumi rule add --target /system/bin/tool --source /data/adb/modules/my_module/system/bin/tool
+hybrid-mount kasumi rule merge --target /system/lib64 --source /data/adb/modules/my_module/system/lib64
+hybrid-mount kasumi rule hide --path /system/bin/su
+hybrid-mount kasumi rule delete --path /system/bin/old_tool
+hybrid-mount kasumi rule add-dir --target-base /system/lib64 --source-dir /data/adb/modules/my_module/system/lib64
+hybrid-mount kasumi rule remove-dir --target-base /system/lib64 --source-dir /data/adb/modules/my_module/system/lib64
 ```
 
-运维注意：
+---
 
-- `kasumi kstat clear-config` 只会移除持久化配置；已经下发到内核侧的 kstat 规则，通常仍需要重载 Kasumi LKM 或重建整套 runtime 才会完全清掉。
+## 策略参考
 
-## 策略行为矩阵
+### 优先级
 
-下表用于说明不同策略在不同运行条件下的实际行为：
+当多个策略可能同时命中时，按以下顺序评估：
 
-| 规则结果 | 后端可用性 | `enable_overlay_fallback` | 最终行为 |
+1. **路径级覆盖** — `rules.<module>.paths["<path>"]`
+2. **模块级默认** — `rules.<module>.default_mode`
+3. **全局默认** — `default_mode`
+
+### 行为矩阵
+
+| 规则结果 | 后端可用？ | `enable_overlay_fallback` | 最终行为 |
 | --- | --- | --- | --- |
-| `overlay` | OverlayFS 可用 | 任意 | 使用 OverlayFS 挂载。 |
-| `overlay` | OverlayFS 不可用 | `false` | 跳过挂载，并在计划/执行结果中标记失败项。 |
-| `overlay` | OverlayFS 不可用 | `true` | 回退为 Magic Mount（bind mount）重试。 |
-| `magic` | 不适用 | 任意 | 直接使用 Magic Mount。 |
-| `kasumi` | Kasumi 可用 | 任意 | 直接使用 Kasumi 挂载。 |
-| `kasumi` | Kasumi 不可用或未启用 | 任意 | 跳过该路径/模块的 Kasumi 映射。 |
-| `ignore` | 不适用 | 任意 | 不挂载该路径。 |
+| `overlay` | 是 | 任意 | 使用 OverlayFS 挂载。 |
+| `overlay` | 否 | `false` | 跳过并标记失败。 |
+| `overlay` | 否 | `true` | 回退为 Magic Mount 重试。 |
+| `magic` | 不适用 | 任意 | 使用 Magic Mount 挂载。 |
+| `kasumi` | 是 | 任意 | 走 Kasumi 路由。 |
+| `kasumi` | 否 | 任意 | 跳过 Kasumi 映射。 |
+| `ignore` | 不适用 | 任意 | 不挂载。 |
 
-### 规则优先级
+### 模块标记文件
 
-当多个策略可能同时命中时，优先级如下：
+Hybrid Mount 还会识别模块目录中的标记文件。这些标记应为普通文件；运行时只使用文件名判断。标记文件名按 ASCII 字母大小写不敏感匹配，因此 `DISABLE`、`Disable` 与 `disable` 会被视为同一种标记。
 
-1. 路径级覆盖（`rules.<module>.paths["..."]`）
-2. 模块级默认（`rules.<module>.default_mode`）
-3. 全局默认（`default_mode`）
+| 标记 | 位置 | 作用 |
+| --- | --- | --- |
+| `disable` | 模块根目录 | 将模块排除在挂载计划之外，并在模块列表中显示为禁用。 |
+| `remove` | 模块根目录 | 将模块排除在挂载计划之外；通常由 Root 管理器在移除模块时创建。 |
+| `skip_mount` | 模块根目录 | 跳过该模块的挂载处理，并记录到运行时 skip 列表。 |
+| `mount_error` | 模块根目录 | 标记曾因挂载失败而被跳过的模块。恢复逻辑和守护进程命令可能创建或清除此标记。 |
+| `overlay` / `magic` | 模块根目录，Nano 构建 | 为 Nano 构建选择模块默认挂载后端。Full 和 Lite 构建使用配置规则。 |
+| `.replace` | 模块目录内部 | 对其所在目录应用替换语义。该标记本身不会作为普通模块内容复制；准备出的 OverlayFS 层会保留该目录，并在支持时设置 overlay opaque 元数据。 |
 
-### 实用示例
+如果同一目录中存在同一种标记的多个大小写变体，清理操作会移除所有匹配变体。
 
-- 模块大部分路径走 overlay，仅单个易冲突文件走 magic：
-  - 模块默认设为 `overlay`
-  - 对该路径配置 `rules.<module>.paths["system/bin/<tool>"] = "magic"`
-- 临时屏蔽单个冲突文件，而不禁用整个模块：
-  - 配置 `rules.<module>.paths["..."] = "ignore"`
-- 内核 OverlayFS 稳定性不足时降低失败概率：
-  - 配置 `enable_overlay_fallback = true`。
+### 实用场景
+
+- **模块大部分路径走 overlay，仅单个文件走 magic**：模块默认设为 `overlay`，对冲突路径配置 `magic`。
+- **临时排除某个冲突文件**：将该路径设为 `ignore`。
+- **内核 OverlayFS 不稳定**：配置 `enable_overlay_fallback = true`。
+
+---
 
 ## CLI 命令
 
@@ -232,62 +362,181 @@ hybrid-mount kasumi kstat upsert --target-ino 11 --target-path /system/bin/app_p
 hybrid-mount [OPTIONS] [COMMAND]
 ```
 
-全局参数：
+### 全局参数
 
-- `-c, --config <PATH>` 指定配置文件路径
-- `-m, --moduledir <PATH>` 覆盖模块目录
-- `-s, --mountsource <SOURCE>` 覆盖来源标识
-- `-p, --partitions <CSV>` 覆盖分区列表
+| 参数 | 说明 |
+| ---- | ---- |
+| `-c, --config <PATH>` | 指定配置文件路径。 |
 
-子命令：
+### 子命令
 
-- `gen-config` 生成配置文件
-- `show-config` 输出当前生效配置（JSON）
-- `save-config --payload <HEX_JSON>` 从 WebUI 负载保存配置
-- `save-module-rules --module <ID> --payload <HEX_JSON>` 更新单模块规则
-- `modules` 输出模块清单
+| 命令 | 说明 |
+| ---- | ---- |
+| `gen-config` | 生成默认配置文件。 |
+| `logs` | 打印最近的守护进程日志。 |
+| `api storage` | 查询存储模式（ext4/tmpfs）。 |
+| `api mount-stats` | 打印挂载统计信息。 |
+| `api mount-topology` | 打印挂载拓扑树。 |
+| `api partitions` | 列出受管分区。 |
+| `api system-info` | 打印系统信息。 |
+| `api version` | 打印守护进程版本。 |
+| `api config-get` | 以 JSON 格式输出生效配置。 |
+| `api config-set --config <JSON>` | 替换整个配置。 |
+| `api config-patch --patch <JSON>` | 增量合并配置补丁。 |
+| `api config-reset` | 重置为默认配置。 |
+| `api modules-list` | 列出已检测模块。 |
+| `api modules-apply --modules <JSON>` | 应用模块模式变更。 |
+| `api lkm` | 查询 LKM 状态。 |
+| `api features` | 列出支持的特性。 |
+| `api hooks` | 列出 Kasumi hooks 状态。 |
+| `api kernel-uname` | 打印内核 uname。 |
+| `api open-url --url <URL>` | 在设备上打开 URL。 |
+| `api reboot` | 重启设备。 |
+| `api kasumi-maps-add --rule <JSON>` | 添加 Kasumi maps 伪装规则。 |
+| `api kasumi-maps-clear` | 清除所有 Kasumi maps 伪装规则。 |
+| `daemon launch` | 前台启动守护进程。 |
+| `daemon serve` | 后台启动守护进程（服务模式）。 |
+| `daemon ping` | 检查守护进程存活。 |
+| `daemon webui-start` | 仅启动 WebUI。 |
+| `daemon stop` | 停止守护进程。 |
+| `daemon status` | 查询守护进程运行时状态。 |
+| `kasumi ...` | Kasumi 管理（参见 [Kasumi](#kasumi)）。 |
+| `lkm load / unload / status` | LKM 生命周期管理。 |
+| `hide list / add / remove / apply` | 用户 hide 规则管理。 |
+
+---
+
+## 架构说明
+
+```text
+┌─────────────────────────────────────────────┐
+│                  config.toml                  │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│               模块清单扫描                    │
+│         扫描模块目录，分类条目                  │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│               挂载规划器                      │
+│    评估规则 (路径 > 模块 > 全局)               │
+│    生成 overlay / magic / kasumi 计划         │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│               执行器                          │
+│  ┌──────────┐ ┌──────────┐ ┌──────────────┐ │
+│  │ OverlayFS│ │  Magic   │ │   Kasumi     │ │
+│  │ 执行器   │ │  Mount   │ │   执行器     │ │
+│  └──────────┘ └──────────┘ └──────────────┘ │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│            运行时状态 + 守护进程               │
+│    持久化状态 → Unix socket → WebUI/CLI       │
+└─────────────────────────────────────────────┘
+```
+
+### 源码结构
+
+```text
+src/
+├── conf/          配置模型、TOML 加载器、CLI 定义与处理
+├── domain/        核心类型：MountMode、ModuleRules、路径匹配
+├── partitions/    受管分区自动发现
+├── core/
+│   ├── inventory/ 模块发现与列表
+│   ├── ops/       挂载计划生成、各后端执行器
+│   ├── daemon/    Unix + TCP 双协议守护进程（CLI + WebUI/SSE）
+│   ├── api/       WebUI 端点负载构建
+│   ├── startup/   启动流程、恢复、重试逻辑
+│   ├── storage/   共享存储工具（ext4 镜像、tmpfs）
+│   └── runtime_state/ 守护进程状态持久化
+├── mount/
+│   ├── overlayfs/ OverlayFS 后端（ext4 镜像 / tmpfs）
+│   ├── magic_mount/ Bind mount 后端
+│   └── kasumi/    Kasumi 规则编译、运行时、状态
+├── sys/           底层：挂载 syscall、LKM 加载/卸载、Kasumi UAPI
+└── utils/         日志、路径工具、校验
+
+webui/
+├── src/
+│   ├── routes/    页面组件（状态、配置、模块、Kasumi、关于）
+│   ├── components/ 共享 UI 组件（导航栏、提示、骨架屏）
+│   ├── lib/       API 桥接、状态管理、编解码器、国际化
+│   └── locales/   9 种语言国际化
+
+xtask/             构建与发布自动化
+module/            模块打包脚本与静态资源
+```
+
+---
 
 ## 构建方式
 
-环境要求：
+### 环境要求
 
-- 使用 `rust-toolchain.toml` 指定的 Rust 工具链
-- Android NDK（建议 r27+）
-- GPL-2.0-only 的 APatch KPM 模块源码仓库 `Hybrid-Mount/nuke-kpm`（通过 `HYBRID_MOUNT_KPM_DIR` 指定，或直接检出到 `./nuke-kpm`）
-- 用于构建 APatch KPM 的 `AndroidPatch/kpm` 工作树（通过 `HYBRID_MOUNT_KP_DIR` 或 `KP_DIR` 指定）
-- Node.js 20+（仅构建 WebUI 时需要）
+- Rust nightly（参见 `rust-toolchain.toml`）
+- Android NDK r27+ 和 `cargo-ndk`
+- Node.js 20+ 和 pnpm（用于 WebUI）
 
-命令示例：
+### 命令
 
 ```bash
-# 完整构建
-cargo run -p xtask -- build --release
+# Full 版本构建（二进制 + WebUI + Kasumi）→ output/
+cargo run -p xtask -- build --release --flavor full
 
-# 仅构建运行时（二进制）
+# Lite 版本构建（二进制 + WebUI，不含 Kasumi）→ output/
+cargo run -p xtask -- build --release --flavor lite
+
+# Nano 版本构建（纯配置文件控制，不含 WebUI/CLI/daemon）→ output/
+cargo run -p xtask -- build --release --flavor nano
+
+# 仅构建二进制（跳过 WebUI）
 cargo run -p xtask -- build --release --skip-webui
 
-# 本地 arm64 调试包
+# 本地 arm64 调试构建
 ./scripts/build-local.sh
 
-# 打入预编译的 Kasumi LKM 资产
+# 本地 lite 调试构建
+./scripts/build-local.sh --lite
+
+# 本地 nano 调试构建
+./scripts/build-local.sh --nano
+
+# 打入预编译的 Kasumi LKM .ko 资产（仅 full 版本）
 ./scripts/build-local.sh --release --kasumi-lkm-dir /path/to/kasumi-lkm
+
+# WebUI 开发服务器（热重载）
+cd webui && pnpm install && pnpm dev
+
+# 代码检查
+cargo run -p xtask -- lint
+cd webui && pnpm lint
+
+# 运行测试
+cargo +nightly test
+cd webui && pnpm test
 ```
 
-如果要产出可直接给 APatch 使用的发布包，请在执行 `xtask` 前先用 `HYBRID_MOUNT_KPM_DIR` 指向 `Hybrid-Mount/nuke-kpm` 检出目录，再导出 `HYBRID_MOUNT_KP_DIR`（或 `KP_DIR`）以及 Android NDK 路径。若希望强制重编 KPM，而不是复用已有产物，可再设置 `HYBRID_MOUNT_BUILD_KPM=1`。
+### Release 编译配置
 
-当 KPM 构建条件满足时，`xtask` 会从外部 KPM 源码仓库构建 `nuke_ext4_sysfs.kpm` 并打进模块包。`release` 构建要求该产物存在；`debug` 构建在缺少 KPM 条件时会给出警告并继续。
+Release 使用 `opt-level = 3`、`lto = "fat"`、`codegen-units = 1`、`strip = true`、`panic = "abort"` 以减小二进制体积。
 
-产物输出到 `output/`。
+---
 
 ## 运维建议
 
-- 新安装默认依赖自动检测 `mountsource`，只有在 `config.toml` 中显式指定时才会覆盖。
-- 在 APatch 环境下，Hybrid Mount 会在启动早期通过 `/data/adb/ap/bin/kptools kpm load` 预加载 `/data/adb/hybrid-mount/kpm/nuke_ext4_sysfs.kpm`，真正需要执行 `ext4_unregister_sysfs` 时再调用 `kpm control/call`，失败时再回退到 `MNT_DETACH`。
-- APatch 相关运行时覆盖变量包括 `HYBRID_MOUNT_APATCH_KP_BIN`、`HYBRID_MOUNT_APATCH_KPM_MODULE`、`HYBRID_MOUNT_APATCH_KPM_ID`、`HYBRID_MOUNT_APATCH_KPM_CALL_MODE`、`HYBRID_MOUNT_APATCH_KPM_CONTROL`、`HYBRID_MOUNT_APATCH_KPM_UNUSED_NR`。
-- 如果配置导致启动异常，先 `gen-config` 生成最小配置，再逐步恢复规则。
-- 缩小体积建议优先从依赖特性裁剪与 release profile 入手，再考虑重构。
+- **挂载来源自动检测**：新安装会默认自动检测运行环境。仅在自动检测失败时才需显式设置 `mountsource`。
+- **配置错误恢复**：执行 `hybrid-mount api config-reset` 重置为默认配置，然后逐步恢复规则。也可使用 `gen-config` 重新生成配置文件。
+- **配置缓存**：运行时维护配置缓存。使用 `api config-patch --apply-runtime` 使更改即时生效，或重启守护进程。
+- **Kasumi LKM（仅 full 版本）**：LKM 必须与当前内核匹配。如果自动检测的 KMI 不正确，请使用 `lkm_kmi_override` 覆盖。
+- **`kasumi clear`**：清除运行时状态并释放内核连接。已下发到内核的规则在 LKM 重载前可能仍然有效。
+- **减小体积**：建议优先从依赖特性裁剪和 release profile 调优入手，再考虑重构。
+
+---
 
 ## 开源协议
 
-本仓库采用 [Apache-2.0](LICENSE)。
-上文提到的可选外部构建输入，例如 APatch KPM 源码，仍分别遵循其上游许可证。
+基于 [Apache-2.0](LICENSE) 许可。

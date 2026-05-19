@@ -36,8 +36,6 @@
     "moduleDirDesc": "Укажите каталог, в котором хранятся модули",
     "mountSource": "Источник монтирования",
     "mountSourceDesc": "Глобальное пространство имен (напр. KSU)",
-    "partitions": "Разделы",
-    "partitionsDesc": "Добавьте разделы для монтирования",
     "reload": "Обновить",
     "save": "Сохранить",
     "resetConfig": "Сброс конфига",
@@ -66,7 +64,8 @@
     "mode_tmpfsDesc": "На основе RAM. Самый быстрый ввод-вывод, сбрасывается после перезагрузки.",
     "mode_ext4": "Ext4",
     "mode_ext4Desc": "Loopback-образ. Постоянный, экономит RAM.",
-    "enableOverlayFallback": "Включить fallback overlay"
+    "enableOverlayFallback": "Включить fallback overlay",
+    "daemonStartupMode": "Постоянный демон"
   },
   "modules": {
     "reload": "Обновить",
@@ -98,7 +97,11 @@
     "disableTag": "Отключено",
     "nativeTag": "Стелс",
     "unavailableTag": "Недоступно",
-    "kasumiUnavailableHint": "Kasumi включён, но сейчас недоступен."
+    "kasumiUnavailableHint": "Kasumi включён, но сейчас недоступен.",
+    "mountError": "Ошибка монтирования",
+    "clearMountErrors": "Очистить ошибки",
+    "mountErrorsCleared": "Ошибки очищены",
+    "mountErrorsClearFailed": "Не удалось очистить ошибки"
   },
   "kasumi": {
     "title": "Состояние Kasumi",
@@ -155,6 +158,7 @@
     "userHidePathRequired": "Скрываемый путь не может быть пустым",
     "stealthUpdated": "Stealth обновлён",
     "hidexattrUpdated": "HideXattr обновлён",
+    "selinuxFixUpdated": "SELinux Guard обновлён",
     "ignoreProtocolUpdated": "Политика несовпадения протокола обновлена",
     "kernelDebugUpdated": "Отладка ядра обновлена",
     "kmiOverride": "Переопределение KMI",
@@ -163,6 +167,7 @@
     "lastError": "Последняя ошибка",
     "stealthTitle": "Стелс",
     "hidexattrTitle": "Скрытие xattr",
+    "selinuxFixTitle": "SELinux Guard",
     "ignoreProtocolTitle": "Игнорировать несовпадение протокола",
     "ignoreProtocolHint": "Позволяет Kasumi продолжать работу, даже если userspace API и протокол ядра не полностью совпадают.",
     "lkmUnavailableHint": "Kasumi включён, но модуль ядра ещё не загружен.",

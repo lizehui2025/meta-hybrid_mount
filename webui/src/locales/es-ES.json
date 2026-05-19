@@ -36,8 +36,6 @@
     "moduleDirDesc": "Establece el directorio donde se almacenan los módulos",
     "mountSource": "Fuente Montaje",
     "mountSourceDesc": "Espacio de nombres global (p. ej. KSU)",
-    "partitions": "Particiones",
-    "partitionsDesc": "Añade particiones para montar",
     "reload": "Recargar",
     "save": "Guardar",
     "resetConfig": "Restablecer Config",
@@ -66,7 +64,8 @@
     "mode_tmpfsDesc": "Basado en RAM. I/O más rápido, se restablece al reiniciar.",
     "mode_ext4": "Ext4",
     "mode_ext4Desc": "Imagen loopback. Persistente, ahorra RAM.",
-    "enableOverlayFallback": "Habilitar fallback de overlay"
+    "enableOverlayFallback": "Habilitar fallback de overlay",
+    "daemonStartupMode": "Demonio persistente"
   },
   "modules": {
     "reload": "Refrescar",
@@ -98,7 +97,11 @@
     "disableTag": "Desactivado",
     "nativeTag": "Sigilo",
     "unavailableTag": "No disponible",
-    "kasumiUnavailableHint": "Kasumi está activado, pero no está disponible en este momento."
+    "kasumiUnavailableHint": "Kasumi está activado, pero no está disponible en este momento.",
+    "mountError": "Error de montaje",
+    "clearMountErrors": "Limpiar errores",
+    "mountErrorsCleared": "Errores limpiados",
+    "mountErrorsClearFailed": "Error al limpiar errores"
   },
   "kasumi": {
     "title": "Estado de Kasumi",
@@ -155,6 +158,7 @@
     "userHidePathRequired": "La ruta a ocultar no puede estar vacía",
     "stealthUpdated": "Stealth actualizado",
     "hidexattrUpdated": "HideXattr actualizado",
+    "selinuxFixUpdated": "SELinux Guard actualizado",
     "ignoreProtocolUpdated": "Política de incompatibilidad de protocolo actualizada",
     "kernelDebugUpdated": "Depuración del kernel actualizada",
     "kmiOverride": "Forzar KMI",
@@ -163,6 +167,7 @@
     "lastError": "Último error",
     "stealthTitle": "Sigilo",
     "hidexattrTitle": "Ocultar xattr",
+    "selinuxFixTitle": "SELinux Guard",
     "ignoreProtocolTitle": "Ignorar incompatibilidad de protocolo",
     "ignoreProtocolHint": "Permite que Kasumi siga funcionando cuando la API de usuario y el protocolo del kernel no coinciden por completo.",
     "lkmUnavailableHint": "Kasumi está activado, pero el módulo del kernel aún no está cargado.",
